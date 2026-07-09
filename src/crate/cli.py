@@ -205,7 +205,7 @@ def dig(
         url = record.get("playlist_url") or record["liner_notes_path"]
         print(f"CRATE {record['stamp']}: {n} tracks — {record['thesis']} — {url}")
     else:
-        out.print(open(record["liner_notes_path"]).read())
+        out.print(open(record["liner_notes_path"]).read(), markup=False)
         if record.get("playlist_url"):
             out.print(f"\n▶ {record['playlist_url']}")
         out.print(f"\nLiner notes: {record['liner_notes_path']}")
@@ -427,7 +427,10 @@ def history_list(as_json: bool = typer.Option(False, "--json")):
         raise typer.Exit(2)
     for r in records:
         marker = "dry" if r.get("dry_run") else "▶"
-        out.print(f"{r['stamp']}  [{marker}]  {len(r['tracks'])} tracks — {r['thesis']}")
+        out.print(
+            f"{r['stamp']}  [{marker}]  {len(r['tracks'])} tracks — {r['thesis']}",
+            markup=False,
+        )
 
 
 @history_app.command("show")
@@ -443,7 +446,10 @@ def history_show(
         _emit_json(record)
         return
     notes = config.history_dir() / f"{record['stamp']}-liner-notes.md"
-    out.print(notes.read_text() if notes.exists() else json.dumps(record, indent=2))
+    out.print(
+        notes.read_text() if notes.exists() else json.dumps(record, indent=2),
+        markup=False,
+    )
 
 
 # ---------------------------------------------------------------- doctor
