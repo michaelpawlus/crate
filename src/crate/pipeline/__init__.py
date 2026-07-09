@@ -1,0 +1,1 @@
+"""The dig pipeline: INTENT → SOURCE → TRIANGULATE → SEQUENCE → RESOLVE → PUBLISH."""
