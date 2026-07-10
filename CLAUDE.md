@@ -48,6 +48,27 @@ directly.
 - `docs/curator-model.md` — the digger playbook the SOURCE agent executes.
 - `docs/source-access.md` — verified access methods per source (July 2026).
 
+## Spotify API notes (learned 2026-07-09, first live publish)
+
+Spotify's February 2026 Web API changes broke the endpoints the original spec
+was written against. Current working surface (all in `spotify.py`):
+
+- Create playlist: `POST /me/playlists`. The documented
+  `POST /users/{id}/playlists` returns a bare 403 for development-mode apps
+  created after the 2025 policy change.
+- Add tracks: `POST /playlists/{id}/items`. The old `/playlists/{id}/tracks`
+  endpoint was **removed** Feb 2026 — bare 403, no migration hint in the body.
+- A 403 with just `"Forbidden"` (no "insufficient scope" message) usually means
+  a removed/restricted endpoint, not an auth problem. Diagnose by probing
+  endpoint variants with the stored token before touching OAuth.
+- The `public` field on GET playlist is unreliable (reads `true` for
+  API-created playlists regardless); `public: false` at create time does work.
+- WSL2 auth flow: `webbrowser.open` fails (gio error) and long URLs truncate in
+  the terminal. Working pattern: run `spotify.authorize()` in a background
+  process, grep the URL from its output, hand it to the user as one clickable
+  markdown link. Redirect URI is `http://127.0.0.1:8765/callback` (loopback IP
+  required; Spotify rejects `localhost`).
+
 ## Conventions
 
 - Tests must not hit the network or the agent backend; everything under

@@ -238,17 +238,19 @@ def search_track(track: str, artist: str, album: str | None = None) -> dict[str,
 
 
 def create_playlist(name: str, description: str, public: bool = False) -> dict[str, Any]:
-    user_id = me()["id"]
+    # /users/{id}/playlists returns 403 for development-mode apps created after
+    # Spotify's 2025 policy change; /me/playlists is the form that works.
     return _request(
         "POST",
-        f"/users/{user_id}/playlists",
+        "/me/playlists",
         json={"name": name, "description": description[:300], "public": public},
     )
 
 
 def add_tracks(playlist_id: str, uris: list[str]) -> None:
+    # Spotify removed /playlists/{id}/tracks in Feb 2026; /items is the successor.
     for i in range(0, len(uris), 100):
-        _request("POST", f"/playlists/{playlist_id}/tracks", json={"uris": uris[i : i + 100]})
+        _request("POST", f"/playlists/{playlist_id}/items", json={"uris": uris[i : i + 100]})
 
 
 def top_tracks(limit: int = 50) -> list[dict[str, str]]:
