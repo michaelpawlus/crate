@@ -34,6 +34,17 @@ def test_playlist_history_roundtrip():
     assert state.load_playlist_record("2026-07-08")["thesis"] == "t"
 
 
+def test_missing_playlist_record_returns_none():
+    """A stamp with no record must return None, not raise.
+
+    The CLI's `if not record` guards in `history show` and `feedback` depend on
+    this to emit the documented exit code 2; when this raised FileNotFoundError
+    instead, both commands dumped a traceback and exited 1.
+    """
+    assert state.load_playlist_record("1999-01-01") is None
+    assert state.latest_playlist_record() is None
+
+
 def test_feedback_jsonl_roundtrip():
     recs = [{"playlist": "2026-07-08", "track_pos": 1, "verdict": "love"}]
     state.append_feedback("2026-07-08", recs)
