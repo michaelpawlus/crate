@@ -69,7 +69,9 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
     code: str | None = None
     error: str | None = None
 
-    def do_GET(self):  # noqa: N802
+    # Name mandated by BaseHTTPRequestHandler's dispatch (do_<METHOD>); not ours
+    # to lowercase.
+    def do_GET(self):
         query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         _CallbackHandler.code = query.get("code", [None])[0]
         _CallbackHandler.error = query.get("error", [None])[0]
@@ -168,7 +170,7 @@ def access_token() -> str:
 
 
 def _request(method: str, path: str, **kwargs) -> Any:
-    for attempt in range(3):
+    for _attempt in range(3):
         resp = httpx.request(
             method,
             f"{API}{path}",

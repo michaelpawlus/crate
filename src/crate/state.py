@@ -2,7 +2,7 @@
 The user may edit any of these by hand; manual edits are authoritative."""
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -116,7 +116,7 @@ def today_stamp() -> str:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def playlist_record_path(stamp: str) -> Path:
@@ -142,10 +142,16 @@ def list_playlist_records() -> list[Path]:
     return sorted(config.history_dir().glob("*-playlist.json"))
 
 
-def load_playlist_record(stamp_or_path: str | Path) -> dict[str, Any]:
+def load_playlist_record(stamp_or_path: str | Path) -> dict[str, Any] | None:
+    """Load one dig's record by stamp or path, or None if there is no such
+    record. Returning None rather than raising is what lets the CLI's
+    `if not record` guards emit the documented exit code 2; it also matches
+    latest_playlist_record()'s contract."""
     path = Path(stamp_or_path)
     if not path.exists():
         path = playlist_record_path(str(stamp_or_path))
+    if not path.exists():
+        return None
     return json.loads(path.read_text())
 
 

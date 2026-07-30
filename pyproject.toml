@@ -24,8 +24,66 @@ crate = "crate.cli:app"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "ruff>=0.16",
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.22,<0.10.0"]
+# Upper bound tracks uv's own minor series: uv_build is released in lockstep
+# with uv, and a range that excludes the installed uv warns on every build.
+# <0.10.0 was written against the uv on the old WSL2 host; this machine and CI
+# both run 0.11.x. Verified the widened range produces a byte-identical wheel.
+requires = ["uv_build>=0.9.22,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+
+# Selected explicitly rather than relying on ruff's defaults, which have widened
+# across releases — an unpinned set means a ruff upgrade silently changes what CI
+# enforces. E5 (line length) is deliberately absent.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "N", "UP", "B", "S", "BLE", "DTZ", "PERF", "RUF"]
+
+ignore = [
+    # `stamp` is the playlist's *local civil date* and `weekday` (which keys
+    # signals.mood_priors) is derived from the same local clock. DTZ011 wants an
+    # explicit tz; using UTC would file a 10pm Tuesday dig under Wednesday and
+    # read Wednesday's mood prior. Local-naive is the intended semantics.
+    # This was invisible on the WSL2 host, whose clock ran UTC.
+    "DTZ011",
+    # Renaming `NotAuthenticated` to `NotAuthenticatedError` is a public API
+    # change, deliberately out of scope for the macOS migration.
+    "N818",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's whole API is function calls in argument defaults (`typer.Option(...)`).
+# The blind excepts are the CLI's degradation contract: a failed Spotify auth,
+# an unavailable agent, a missing freshness penalty, and a failed drift audit
+# each warn and continue rather than aborting a dig. S110's bare `pass` is that
+# same contract where there is nothing useful to say. Shelling out to $EDITOR
+# is the point of `crate taste edit`.
+"src/crate/cli.py" = ["B008", "BLE001", "S110", "S603"]
+# `claude` and $EDITOR are resolved from PATH on purpose — hardcoding an
+# interpreter path is what broke on the move off WSL2. S603/S607 flag exactly
+# that intended pattern.
+"src/crate/agent.py" = ["S603", "S607"]
+# doctor's job is to *report* a failure, not inherit it: any exception from a
+# live Spotify call becomes a failed check, never a traceback.
+"src/crate/doctor.py" = ["BLE001"]
+# A dead source must never kill a dig (see the comment at the handler).
+"src/crate/fetchers.py" = ["BLE001"]
+# Weighted source rotation is not cryptography, and the Random instance is
+# injectable precisely so tests can pin it.
+"src/crate/pipeline/source.py" = ["S311"]
+# TOKEN_URL is Spotify's public OAuth endpoint. S105 matches on the name.
+"src/crate/spotify.py" = ["S105"]
+# PERF401: the flagged append sits inside a nested loop over JSONL lines with a
+# blank-line guard — a comprehension there is harder to read, not faster.
+"src/crate/state.py" = ["PERF401"]
+# assert is the point of a test file; the seeded Random is the point of the
+# rotation tests.
+"tests/**" = ["S101", "S311", "PERF401"]

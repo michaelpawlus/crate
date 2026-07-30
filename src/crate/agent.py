@@ -77,9 +77,9 @@ def _run_claude_cli(prompt: str, *, web: bool, timeout: int) -> str:
         raise AgentError(
             "`claude` CLI not found. Install Claude Code, or set "
             "CRATE_AGENT_BACKEND=api with an ANTHROPIC_API_KEY."
-        )
+        ) from None
     except subprocess.TimeoutExpired:
-        raise AgentError(f"Agent call timed out after {timeout}s.")
+        raise AgentError(f"Agent call timed out after {timeout}s.") from None
     if proc.returncode != 0:
         raise AgentError(f"claude -p failed: {proc.stderr.strip()[:2000]}")
     try:
@@ -96,7 +96,7 @@ def _run_api(prompt: str, *, timeout: int) -> str:
     try:
         import anthropic
     except ImportError:
-        raise AgentError("Install the API extra: uv pip install 'crate[api]'")
+        raise AgentError("Install the API extra: uv sync --extra api") from None
     client = anthropic.Anthropic()
     model = os.environ.get("CRATE_MODEL", "claude-sonnet-5")
     resp = client.messages.create(
@@ -113,7 +113,7 @@ def extract_json(text: str) -> Any:
     """Pull the first JSON object or array out of agent output, tolerating
     prose and code fences around it."""
     fenced = re.findall(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
-    candidates = fenced + [text]
+    candidates = [*fenced, text]
     for candidate in candidates:
         candidate = candidate.strip()
         # Try the outermost structure first: whichever bracket opens earliest.

@@ -9,7 +9,6 @@ import json
 import os
 import subprocess
 import sys
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -64,7 +63,7 @@ def _main(version: bool = typer.Option(False, "--version", help="Show version.")
 def init(
     skip_spotify: bool = typer.Option(False, help="Skip Spotify authorization."),
     skip_interview: bool = typer.Option(False, help="Skip the taste interview."),
-    client_id: Optional[str] = typer.Option(
+    client_id: str | None = typer.Option(
         None, help="Spotify app client ID (or set CRATE_SPOTIFY_CLIENT_ID)."
     ),
 ):
@@ -130,7 +129,9 @@ def _taste_interview() -> None:
         prompt = agent.load_prompt("interview", answers_json=json.dumps(answers, indent=1))
         taste = agent.run_agent(prompt).strip() + "\n"
         if taste.startswith("```"):
-            taste = "\n".join(l for l in taste.splitlines() if not l.startswith("```")) + "\n"
+            taste = "\n".join(
+                line for line in taste.splitlines() if not line.startswith("```")
+            ) + "\n"
     except Exception as exc:
         console.print(f"[yellow]Agent unavailable ({exc}); writing template.[/yellow]")
         taste = seeds.TASTE_TEMPLATE + "\n## Interview answers\n\n" + "\n".join(
@@ -144,8 +145,8 @@ def _taste_interview() -> None:
 
 @app.command()
 def dig(
-    brief: Optional[str] = typer.Option(None, help='Per-run brief, e.g. "rainy Sunday, instrumental-leaning".'),
-    length: Optional[int] = typer.Option(None, help=f"Playlist length (default {config.DEFAULT_LENGTH})."),
+    brief: str | None = typer.Option(None, help='Per-run brief, e.g. "rainy Sunday, instrumental-leaning".'),
+    length: int | None = typer.Option(None, help=f"Playlist length (default {config.DEFAULT_LENGTH})."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Stop before Spotify: output Markdown only."),
     offline: bool = typer.Option(False, help="No agent web research; fetched material and manual ingests only."),
     notify: bool = typer.Option(False, help="Print a one-line summary to stdout (cron/ntfy-friendly)."),
@@ -225,8 +226,8 @@ def dig(
 
 @app.command()
 def feedback(
-    playlist: Optional[str] = typer.Argument(None, help="Playlist date stamp (default: latest)."),
-    quick: Optional[str] = typer.Option(None, "--quick", help='Free-text feedback: "loved 3,7,11; skip 5; too mellow overall".'),
+    playlist: str | None = typer.Argument(None, help="Playlist date stamp (default: latest)."),
+    quick: str | None = typer.Option(None, "--quick", help='Free-text feedback: "loved 3,7,11; skip 5; too mellow overall".'),
     yes: bool = typer.Option(False, "--yes", "-y", help="Accept the proposed taste.md update without prompting."),
     as_json: bool = typer.Option(False, "--json", help="Emit the parsed feedback and changes as JSON."),
 ):
@@ -332,7 +333,7 @@ def taste_edit():
 @sources_app.command("list")
 def sources_list(
     as_json: bool = typer.Option(False, "--json"),
-    type_filter: Optional[str] = typer.Option(None, "--type", help="Filter by source type."),
+    type_filter: str | None = typer.Option(None, "--type", help="Filter by source type."),
 ):
     """List the trusted source registry with weights."""
     sources = state.load_sources()
@@ -389,7 +390,7 @@ def sources_weight(name: str, trust: float = typer.Argument(..., min=0.1, max=1.
 @sources_app.command("ingest")
 def sources_ingest(
     name: str,
-    file: Optional[typer.FileText] = typer.Option(None, help="File with a tracklist (default: stdin)."),
+    file: typer.FileText | None = typer.Option(None, help="File with a tracklist (default: stdin)."),
     label: str = typer.Option("", help="What this is, e.g. 'NTS 2026-07-01 episode'."),
 ):
     """Manually ingest a tracklist/list for a source — the path that always works.
@@ -435,7 +436,7 @@ def history_list(as_json: bool = typer.Option(False, "--json")):
 
 @history_app.command("show")
 def history_show(
-    stamp: Optional[str] = typer.Argument(None, help="Date stamp (default: latest)."),
+    stamp: str | None = typer.Argument(None, help="Date stamp (default: latest)."),
     as_json: bool = typer.Option(False, "--json"),
 ):
     """Show one dig's full record (tracks, provenance, rationale)."""
