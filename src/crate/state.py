@@ -2,7 +2,7 @@
 The user may edit any of these by hand; manual edits are authoritative."""
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -116,7 +116,7 @@ def today_stamp() -> str:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def playlist_record_path(stamp: str) -> Path:
