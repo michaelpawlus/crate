@@ -26,6 +26,27 @@ browser-grade clients. Re-verify before building ingestion — unofficial endpoi
 > drift or client headers before egress**. A 4xx means the request arrived. The
 > original note about datacenter blocking is a real phenomenon but was not the
 > operative cause of any failure observed on this host.
+>
+> **All three fixed 2026-07-30** (#2, #3, #4). The diagnoses were each different
+> from the first guess, so record what they actually were:
+>
+> - **NTS** — the API is *unchanged*. `/api/v2/shows/{alias}/episodes/{ep}/tracklist`
+>   is still correct (v1 now answers `410 Gone. Please migrate to /api/v2`). Two of
+>   the three seeded **show aliases** had retired: `jamz-supernova` and `zakia`
+>   404, `floating-points` was fine all along. Because the fetch ran inside a dict
+>   comprehension, the first 404 propagated and took the whole source down with
+>   it. Now verified live: 187 tracks across `floating-points`, `tash-lc`,
+>   `mafalda`. Aliases rot — enumerate current ones at `/api/v2/shows`.
+> - **BBC 6 Music** — `segments/latest` now rejects any page limit above 10
+>   (`400`, "Page limit must be between 1 and 10"); the code asked for 30. Note
+>   `latest` is a small rolling window: it reports `total: 9` and **ignores
+>   `offset`**, so there is nothing to paginate.
+> - **r/listentothis** — not a User-Agent problem, which was the obvious guess.
+>   The public JSON listings 403 for *every* client tried: the crate UA, a
+>   desktop Firefox UA, a macOS Chrome UA, and `old.reddit.com`. The **Atom feed
+>   for the same listing serves fine** — and wants the descriptive crate UA, since
+>   a browser UA is rate-limited to `429` immediately. Titles carry the metadata
+>   inline: `Artist - Track [genre] (year)`.
 
 Verdict key: `access: api | rss | scrape | manual` (best available tier; a source can
 also support lower tiers).
