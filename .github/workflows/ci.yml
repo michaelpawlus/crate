@@ -4,12 +4,42 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv sync
-      - run: uv run pytest -q
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        # v7 is the newest floating major tag astral-sh publishes; v8/v9 exist
+        # only as exact versions (v9.0.0), so `@v9` does not resolve. v7 runs on
+        # node24 and avoids the Node 20 deprecation warning.
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # No python-version input: the interpreter comes from .python-version
+      # (3.11), so CI and local runs agree by construction. That is also this
+      # project's requires-python floor, so the declared minimum is what gets
+      # tested. Nothing currently proves 3.12+ — add a matrix if that matters.
+      #
+      # --locked fails the build on a stale uv.lock instead of silently
+      # re-resolving, so a dependency change without a committed lock is caught
+      # here rather than diverging per-machine.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      # The suite is hermetic by construction: conftest.py isolates CRATE_HOME
+      # and no test may touch the network or the agent backend.
+      - name: Test
+        run: uv run pytest -q
