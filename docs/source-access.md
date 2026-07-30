@@ -5,11 +5,27 @@
 which client worked, since several sources block datacenter/plain-curl traffic but not
 browser-grade clients. Re-verify before building ingestion — unofficial endpoints drift.
 
-> **Egress changed on 2026-07-29.** The project moved to a Mac on a residential
-> connection. Because several verdicts below turn on *datacenter* traffic being
-> blocked, a source recorded here as unreachable or scrape-only may now be
-> reachable at a higher tier. These tiers have not been re-audited from the new
-> network — treat any negative result below as untested rather than current.
+> **Re-checked 2026-07-29 from macOS on a residential connection**, via
+> `crate doctor` (which exercises only the `api`/`rss` tiers; `web`/`manual`
+> sources route through the agent and are not HTTP-fetched here).
+>
+> The egress change turned out **not** to matter — no source became reachable
+> because of it, and none of the three current failures is a block. What did
+> happen is drift in the three weeks since the original audit:
+>
+> | Source | Result | Cause |
+> |---|---|---|
+> | NTS | `404` on `/api/v2/shows/{show}/episodes` | Unofficial endpoint moved. Not a block — the request arrived and the path is gone |
+> | BBC 6 Music | `400` on `rms.api.bbc.co.uk/v2/services/bbc_6music/segments/latest` | Request shape no longer accepted |
+> | r/listentothis | `403 Blocked` | Reddit rejects generic user agents regardless of source IP; residential egress did not help. Needs a real `User-Agent`, not a different network |
+>
+> Fetching cleanly: WFMU, Bandcamp Daily, Aquarium Drunkard, The Quietus,
+> Passion of the Weiss. Discogs returns empty rather than erroring.
+>
+> Takeaway for the next reader: when a source here fails, suspect **endpoint
+> drift or client headers before egress**. A 4xx means the request arrived. The
+> original note about datacenter blocking is a real phenomenon but was not the
+> operative cause of any failure observed on this host.
 
 Verdict key: `access: api | rss | scrape | manual` (best available tier; a source can
 also support lower tiers).

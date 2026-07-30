@@ -163,11 +163,19 @@ represents months of feedback again.
   local-civil-date semantics rather than reaching for `now_iso()`. `DTZ011` is
   ignored in `pyproject.toml` for this reason. This was invisible on WSL2, whose
   clock ran UTC.
-- `docs/source-access.md` was audited from WSL2 behind **datacenter egress**,
-  and several sources block datacenter traffic while allowing browser-grade
-  clients. This Mac is on a residential connection, so those per-source
-  `access:` tiers may now be pessimistic. Re-verify before trusting a source
-  marked unreachable.
+- Three `api`-tier sources are currently dead, confirmed by `crate doctor` on
+  2026-07-29: **NTS** (404 — unofficial endpoint moved), **BBC 6 Music** (400 —
+  request shape no longer accepted), and **r/listentothis** (403 — Reddit
+  rejects generic user agents; needs a real `User-Agent` header, not a different
+  network). `crate doctor` exits 1 whenever any source is dead, so a non-zero
+  exit does not mean the install is broken. `fetchers.gather_source_material`
+  swallows these by design — a dead source must never kill a dig — so digs still
+  run, just with a smaller pool.
+- `docs/source-access.md` was originally audited from WSL2 behind **datacenter
+  egress**. That turned out not to matter: the 2026-07-29 re-check found no
+  source helped by residential egress and no failure caused by blocking. When a
+  source fails here, **suspect endpoint drift or client headers before egress** —
+  a 4xx means the request arrived.
 - Homebrew is at `/opt/homebrew` on Apple Silicon, not `/usr/local`; APFS is
   case-insensitive where ext4 was not; `sed`/`date`/`stat`/`readlink` are BSD
   and take different flags than the GNU versions.
