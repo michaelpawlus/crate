@@ -105,6 +105,52 @@ def run_publish_stage(
     return record
 
 
+def promote_dry_run(record: dict[str, Any]) -> dict[str, Any]:
+    """Publish an already-dug dry-run record to Spotify without re-digging.
+
+    RESOLVE only needs `track`, `artist` and optionally `album`, all of which a
+    dry-run record already stores — so the expensive agent stages (SOURCE,
+    TRIANGULATE, SEQUENCE) never have to run again. Re-digging would not even
+    reproduce the list: pick_sources deliberately refuses a source set identical
+    to the previous run, and the agent stages are non-deterministic.
+
+    Deliberately does NOT touch signals or exclusions. The original dig already
+    appended these tracks to used_tracks, set last_source_set, and incremented
+    playlists_generated; redoing that here would double-count and skew the
+    drift-audit and meta-feedback cadences, which key off those counters.
+    """
+    from .resolve import run_resolve_stage, unresolved_report
+
+    stamp = record["stamp"]
+    resolved, unresolved = run_resolve_stage(record["tracks"])
+    if not resolved:
+        raise RuntimeError(
+            f"No tracks from {stamp} could be confidently matched on Spotify. "
+            f"See {stamp}-unresolved.md."
+        )
+
+    name = f"CRATE · {stamp}"
+    playlist = spotify.create_playlist(name, record["thesis"], public=False)
+    spotify.add_tracks(playlist["id"], [t["spotify_uri"] for t in resolved])
+
+    record = dict(record)
+    record["tracks"] = resolved
+    record["unresolved"] = unresolved
+    record["unresolved_count"] = len(unresolved)
+    record["playlist_id"] = playlist["id"]
+    record["playlist_url"] = playlist.get("external_urls", {}).get("spotify")
+    record["dry_run"] = False
+    state.write_playlist_record(stamp, record)
+
+    notes_path = state.write_history_file(stamp, "liner-notes.md", liner_notes(record))
+    _mirror_to_obsidian(notes_path)
+    if unresolved:
+        state.write_history_file(stamp, "unresolved.md", unresolved_report(unresolved, stamp))
+
+    record["liner_notes_path"] = str(notes_path)
+    return record
+
+
 def _mirror_to_obsidian(notes_path: Path) -> None:
     vault = os.environ.get("OBSIDIAN_VAULT_PATH")
     if not vault or not Path(vault).is_dir():

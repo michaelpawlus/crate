@@ -19,6 +19,7 @@ ok/error/not-found):
 ```
 crate init [--skip-spotify] [--skip-interview] [--client-id ...]
 crate dig [--brief "..."] [--length N] [--dry-run] [--offline] [--notify] [--json]
+crate publish [stamp] [--force] [--json]
 crate feedback [stamp] [--quick "..."] [--yes] [--json]
 crate taste | crate taste edit
 crate sources list|add|weight|ingest
@@ -42,6 +43,12 @@ directly.
   `CRATE_HOME`); manual edits are authoritative.
 - `learning.py` — feedback → source trust weights, stretch budget, exclusions,
   taste.md proposals, drift audit.
+- `pipeline/publish.py` — `run_publish_stage` is the in-dig path;
+  `promote_dry_run` backs `crate publish` and republishes a stored dry-run
+  record without re-digging. It deliberately skips the signals/exclusions
+  bookkeeping, which the original dig already did — repeating it would
+  double-count `playlists_generated` and skew the drift-audit and
+  meta-feedback cadences that key off it.
 - `config.py` — anti-convergence guardrail constants (exploration floor 20%,
   source weight floor 0.1, high-stretch skip discount ⅓). These are
   deliberately constants, NOT state: the learning loop must never tune them.

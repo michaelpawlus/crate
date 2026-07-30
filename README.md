@@ -85,6 +85,8 @@ uv sync --extra api
 crate init                          # seed sources, Spotify OAuth, taste interview
 crate dig --dry-run                 # full dig, Markdown output only (no Spotify)
 crate dig --brief "rainy Sunday, instrumental-leaning"
+crate publish                       # push the last dry run to Spotify — no re-dig
+crate publish 2026-07-30            # …or a specific one
 crate feedback                      # interactive track-by-track session
 crate feedback --quick "loved 3,7,11; skip 5; too mellow overall"
 crate taste                         # current taste.md + learned signals
