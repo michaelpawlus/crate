@@ -28,7 +28,11 @@ dev = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.22,<0.10.0"]
+# Upper bound tracks uv's own minor series: uv_build is released in lockstep
+# with uv, and a range that excludes the installed uv warns on every build.
+# <0.10.0 was written against the uv on the old WSL2 host; this machine and CI
+# both run 0.11.x. Verified the widened range produces a byte-identical wheel.
+requires = ["uv_build>=0.9.22,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
