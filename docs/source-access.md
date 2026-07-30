@@ -5,6 +5,12 @@
 which client worked, since several sources block datacenter/plain-curl traffic but not
 browser-grade clients. Re-verify before building ingestion — unofficial endpoints drift.
 
+> **Egress changed on 2026-07-29.** The project moved to a Mac on a residential
+> connection. Because several verdicts below turn on *datacenter* traffic being
+> blocked, a source recorded here as unreachable or scrape-only may now be
+> reachable at a higher tier. These tiers have not been re-audited from the new
+> network — treat any negative result below as untested rather than current.
+
 Verdict key: `access: api | rss | scrape | manual` (best available tier; a source can
 also support lower tiers).
 

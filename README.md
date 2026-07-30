@@ -44,8 +44,22 @@ Requires Python ≥3.11 and [uv](https://docs.astral.sh/uv/).
 ```bash
 git clone https://github.com/michaelpawlus/crate
 cd crate
-uv tool install .        # or: uv sync && uv run crate ...
+uv sync
+uv run crate --help
 ```
+
+To put `crate` on your `PATH`, symlink the entry point rather than using
+`uv tool install`:
+
+```bash
+ln -sfn "$PWD/.venv/bin/crate" ~/.local/bin/crate
+```
+
+`uv tool install` builds an isolated environment that re-resolves dependencies
+outside `uv.lock`. This project declares `typer>=0.12` but locks 0.26.8, and the
+entire CLI surface is typer — a tool install would run a version nothing has
+tested. The symlink's only cost is that `crate` breaks if you delete `.venv`,
+which `uv sync` restores.
 
 ### Agent backend
 
@@ -56,7 +70,7 @@ so a Claude subscription covers it with no API key. Alternatively:
 ```bash
 export CRATE_AGENT_BACKEND=api        # use the Anthropic API instead
 export ANTHROPIC_API_KEY=sk-ant-...
-uv tool install '.[api]'
+uv sync --extra api
 ```
 
 ### Spotify setup
