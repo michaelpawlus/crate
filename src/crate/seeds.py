@@ -8,7 +8,11 @@ SEED_SOURCES: list[dict] = [
         "type": "radio",
         "access": "api",
         "endpoint": "https://www.nts.live/api/v2",
-        "shows": ["jamz-supernova", "floating-points", "zakia"],
+        # Verified live 2026-07-30. Show aliases retire without notice — when one
+        # 404s the fetcher skips it and `crate doctor` names it, so replace it
+        # here from https://www.nts.live/api/v2/shows. Known-good alternates:
+        # nkisi, moxie, ok-williams, flo, chuquimamani-condori, in-focus.
+        "shows": ["floating-points", "tash-lc", "mafalda"],
         "trust": 0.9,
         "feedback_count": 0,
         "notes": "Show archives with structured tracklists via unofficial JSON API. Best for: everything; deep global range.",
@@ -191,7 +195,7 @@ SEED_SOURCES: list[dict] = [
         "name": "r/listentothis",
         "type": "list-community",
         "access": "api",
-        "endpoint": "https://www.reddit.com/r/listentothis/top.json?t=month",
+        "endpoint": "https://www.reddit.com/r/listentothis/top.rss?t=month",
         "trust": 0.4,
         "feedback_count": 0,
         "notes": "Weak signal — use for triangulation only, never as sole provenance.",

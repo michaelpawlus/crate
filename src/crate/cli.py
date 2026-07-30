@@ -222,6 +222,43 @@ def dig(
         console.print(f"[yellow]⚠ Drift audit:[/yellow] {drift['recommendation']}")
 
 
+# ---------------------------------------------------------------- publish
+
+@app.command()
+def publish(
+    stamp: str | None = typer.Argument(None, help="Playlist date stamp (default: latest)."),
+    force: bool = typer.Option(False, "--force", help="Republish even if already on Spotify."),
+    as_json: bool = typer.Option(False, "--json", help="Emit the updated playlist record as JSON."),
+):
+    """Publish an already-dug dry-run playlist to Spotify, without re-digging."""
+    from .pipeline import publish as publish_stage
+
+    record = state.load_playlist_record(stamp) if stamp else state.latest_playlist_record()
+    if not record:
+        _fail("not found", code=2, as_json=as_json)
+    if record.get("playlist_url") and not force:
+        _fail(
+            f"{record['stamp']} is already published: {record['playlist_url']} "
+            "(use --force to publish it again as a new playlist)",
+            as_json=as_json,
+        )
+
+    console.print(f"[bold]RESOLVE[/bold] — matching {len(record['tracks'])} tracks…")
+    try:
+        record = publish_stage.promote_dry_run(record)
+    except Exception as exc:
+        _fail(str(exc), as_json=as_json)
+    console.print(
+        f"  {len(record['tracks'])} resolved, {record['unresolved_count']} unresolved gems"
+    )
+
+    if as_json:
+        _emit_json(record)
+        return
+    out.print(f"\n▶ {record['playlist_url']}")
+    out.print(f"Liner notes: {record['liner_notes_path']}")
+
+
 # ---------------------------------------------------------------- feedback
 
 @app.command()
