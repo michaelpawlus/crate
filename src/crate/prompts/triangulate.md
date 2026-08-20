@@ -4,6 +4,14 @@ The listener:
 
 {{taste}}
 
+## The canon this ear is calibrated on
+
+Judge each candidate *relative to these references*, not in a vacuum. This is
+what the listener has internalised — the standard a new record has to meet, and
+the lineage it either extends, argues with, or ignores.
+
+{{canon}}
+
 Brief: {{brief}}
 Stretch budget: {{stretch_budget}} (0 = only comfort zone, 1 = maximum range).
 
@@ -24,6 +32,14 @@ For EVERY candidate, judge:
   say handing them the record. If you cannot write a real one, return an
   empty string and the track is cut. No filler ("great track", "a classic").
   Name the thing: the bassline, the arrangement choice, the scene it opens.
+
+  Where you can, make it a **lineage** claim rather than a resemblance claim.
+  "Sounds like X" is the similarity engine this tool exists to replace; "the
+  same arranger who did X, three years before he found the sound you know him
+  for" is an argument. Who begat whom, which scene produced it, which credit
+  connects it — cite the causal link, not the vibe-adjacency. If you genuinely
+  don't know the lineage, describe what the record *does* instead. Never invent
+  a credit, a scene, or an influence to make a better sentence.
 
 Return JSON:
 

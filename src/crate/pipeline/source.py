@@ -1,13 +1,19 @@
 """SOURCE: the agentic core. Pick a rotated, exploration-respecting subset of
 the registry, gather deterministic material (feeds, NTS API, manual ingests),
-then hand the digger playbook to the agent to produce a provenance-attached
-candidate pool."""
+walk the credits graph out from tonight's material and the canon, then hand the
+digger playbook to the agent to produce a provenance-attached candidate pool.
+
+The graph pass (P9) supplies *attested facts* - who arranged the record, who
+played on it, which label put it out, straight from Discogs - as leads for the
+agent to dig. It never supplies candidates itself and never becomes a track's
+source: the registry source that started the chain stays the source, and the
+traversal path is recorded in `why` (P11)."""
 
 import json
 import random
 from typing import Any
 
-from .. import agent, config, fetchers, state
+from .. import agent, config, discogs, fetchers, lineage, state
 
 
 def pick_sources(
@@ -55,6 +61,24 @@ def gather_material(picked: list[dict[str, Any]]) -> dict[str, Any]:
     return material
 
 
+def graph_pass(material: dict[str, Any], offline: bool = False) -> dict[str, Any]:
+    """Grow the credits graph from tonight's material and return the
+    neighborhood as digging leads.
+
+    Never raises: a thin graph makes for a smaller dig, not a failed one - the
+    same contract `fetchers.gather_source_material` holds for a dead source.
+    Skipped entirely when offline, since every edge here costs a live request.
+    """
+    if offline:
+        return {"leads": [], "summary": {"skipped": "offline"}}
+    try:
+        seeds = lineage.seed_records(material, limit=config.GRAPH_SEEDS_PER_RUN)
+        summary = lineage.build_from_records(seeds, budget=discogs.Budget())
+        return {"leads": lineage.neighborhood(seeds), "summary": summary}
+    except Exception as exc:
+        return {"leads": [], "summary": {"error": str(exc)}}
+
+
 def run_source_stage(
     run_spec: dict[str, Any],
     dry_run_offline: bool = False,
@@ -68,6 +92,7 @@ def run_source_stage(
         raise RuntimeError("No sources in registry. Run `crate init` first.")
 
     material = gather_material(picked)
+    graph_material = graph_pass(material, offline=dry_run_offline)
     exclusions = state.load_exclusions()
 
     playbook = agent.load_prompt("curator-model")
@@ -94,6 +119,9 @@ def run_source_stage(
             indent=1,
         ),
         material_json=json.dumps(material, indent=1, default=str)[:60000],
+        graph_leads_json=json.dumps(
+            graph_material["leads"], indent=1, ensure_ascii=False
+        )[:12000],
         exclusions_json=json.dumps(
             {
                 "artists": exclusions.get("artists", []),

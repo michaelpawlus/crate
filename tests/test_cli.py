@@ -100,3 +100,84 @@ def test_init_noninteractive(monkeypatch):
     assert result.exit_code == 0
     assert state.load_sources()
     assert state.load_taste()
+
+
+# --- canon ---
+
+def test_canon_list_empty_explains_why_it_starts_empty():
+    result = runner.invoke(app, ["canon", "list"])
+    assert result.exit_code == 0
+    assert "empty" in result.stdout.lower()
+
+
+def test_canon_list_json_is_a_list():
+    result = runner.invoke(app, ["canon", "list", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == []
+
+
+def test_canon_add_then_list():
+    result = runner.invoke(
+        app,
+        ["canon", "add", "Ethio-jazz", "Mulatu Astatke", "Yekermo Sew",
+         "--note", "the template", "--what-it-does", "vibraphone over Amharic modes"],
+    )
+    assert result.exit_code == 0
+    data = json.loads(runner.invoke(app, ["canon", "list", "--json"]).stdout)
+    assert data[0]["name"] == "Ethio-jazz"
+    assert data[0]["what_it_does"] == "vibraphone over Amharic modes"
+    assert data[0]["anchors"][0]["record"] == "Mulatu Astatke — Yekermo Sew"
+
+
+# --- graph ---
+
+def test_graph_stats_on_an_empty_graph():
+    result = runner.invoke(app, ["graph", "stats", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["edges"] == 0
+
+
+def test_graph_show_unknown_name_exits_2():
+    result = runner.invoke(app, ["graph", "show", "Nobody At All"])
+    assert result.exit_code == 2
+
+
+def test_graph_show_walks_from_a_known_node():
+    from crate import graph
+
+    graph.add_nodes([
+        {"kind": "artist", "name": "Mulatu Astatke"},
+        {"kind": "release", "name": "Mulatu Of Ethiopia"},
+    ])
+    graph.add_edges([{
+        "src": "artist:mulatu-astatke", "dst": "release:mulatu-of-ethiopia",
+        "kind": "played-on", "asserted_by": "discogs:release/1",
+    }])
+    result = runner.invoke(app, ["graph", "show", "Mulatu Astatke", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)[0]["name"] == "Mulatu Of Ethiopia"
+
+
+# --- registry migration ---
+
+def test_sources_migrate_writes_incentive_down():
+    stripped = [{k: v for k, v in s.items() if k != "incentive"} for s in seeds.SEED_SOURCES]
+    state.save_sources(stripped)
+    result = runner.invoke(app, ["sources", "migrate", "--json"])
+    assert result.exit_code == 0
+    assert len(json.loads(result.stdout)["filled"]) == len(seeds.SEED_SOURCES)
+    # Second run is a no-op — the field is on disk now.
+    again = runner.invoke(app, ["sources", "migrate", "--json"])
+    assert json.loads(again.stdout)["filled"] == []
+
+
+def test_sources_migrate_before_init_exits_1():
+    result = runner.invoke(app, ["sources", "migrate", "--json"])
+    assert result.exit_code == 1
+
+
+def test_sources_list_json_carries_incentive():
+    _init_state()
+    result = runner.invoke(app, ["sources", "list", "--json"])
+    data = json.loads(result.stdout)
+    assert all(s.get("incentive") for s in data)

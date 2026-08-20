@@ -26,9 +26,15 @@ taste_app = typer.Typer(
     help="Inspect or edit the taste profile.", invoke_without_command=True
 )
 history_app = typer.Typer(help="Browse past digs.", no_args_is_help=True)
+canon_app = typer.Typer(
+    help="The reference records judgment is anchored against.", no_args_is_help=True
+)
+graph_app = typer.Typer(help="Inspect the credits graph.", no_args_is_help=True)
 app.add_typer(sources_app, name="sources")
 app.add_typer(taste_app, name="taste")
 app.add_typer(history_app, name="history")
+app.add_typer(canon_app, name="canon")
+app.add_typer(graph_app, name="graph")
 
 console = Console(stderr=True)
 out = Console()
@@ -424,6 +430,36 @@ def sources_weight(name: str, trust: float = typer.Argument(..., min=0.1, max=1.
     _fail(f"source '{name}' not found", code=2)
 
 
+@sources_app.command("migrate")
+def sources_migrate(as_json: bool = typer.Option(False, "--json")):
+    """Write newly-added registry fields into sources.yaml.
+
+    Fields added after a registry was written (currently `incentive`) are filled
+    in memory on every load, so nothing is broken without this. Running it writes
+    them down, which is the point: a prior you cannot see is a prior you cannot
+    argue with. Edit the values afterwards — the file is authoritative.
+    """
+    path = config.sources_path()
+    if not path.exists():
+        _fail("not initialized — run `crate init` first", as_json=as_json)
+    import yaml
+
+    raw = yaml.safe_load(path.read_text()) or {}
+    sources, filled = state.backfill_source_defaults(raw.get("sources", []))
+    if filled:
+        state.save_sources(sources)
+    if as_json:
+        _emit_json({"filled": filled, "path": str(path)})
+        return
+    if not filled:
+        console.print("✓ registry already has every field — nothing to write")
+        return
+    console.print(f"✓ filled `incentive` for {len(filled)} source(s) → {path}")
+    for name in filled:
+        src = next(x for x in sources if x["name"] == name)
+        console.print(f"    {name}: {src['incentive']}")
+
+
 @sources_app.command("ingest")
 def sources_ingest(
     name: str,
@@ -491,6 +527,101 @@ def history_show(
 
 
 # ---------------------------------------------------------------- doctor
+
+# ---------------------------------------------------------------- canon
+
+@canon_app.command("list")
+def canon_list(as_json: bool = typer.Option(False, "--json")):
+    """Show the canon — the references TRIANGULATE judges candidates against."""
+    from . import canon
+
+    lineages = canon.load()
+    if as_json:
+        _emit_json(lineages)
+        return
+    if not lineages:
+        out.print(
+            "The canon is empty.\n\n"
+            "It starts that way on purpose — a canon seeded with someone else's\n"
+            "records is exactly the imposed taste this tool exists to avoid.\n\n"
+            "Add the records your ear is actually calibrated on:\n"
+            '  crate canon add "Ethio-jazz" "Mulatu Astatke" "Yekermo Sew"'
+        )
+        return
+    for lin in lineages:
+        head = f"[bold]{lin.get('name','')}[/bold]"
+        if lin.get("what_it_does"):
+            head += f" — {lin['what_it_does']}"
+        out.print(head)
+        for anchor in lin.get("anchors", []) or []:
+            note = f"  [dim]({anchor['note']})[/dim]" if anchor.get("note") else ""
+            out.print(f"    {anchor.get('record','')}{note}")
+        out.print(f"    [dim]last referenced {lin.get('last_referenced','?')}[/dim]\n")
+
+
+@canon_app.command("add")
+def canon_add(
+    lineage: str = typer.Argument(..., help='Lineage name, e.g. "Ethio-jazz".'),
+    artist: str = typer.Argument(..., help="Artist."),
+    track: str = typer.Argument(..., help="Track or record."),
+    note: str = typer.Option("", help="What this record does — why it is a reference."),
+    what_it_does: str = typer.Option("", help="One line describing the lineage itself."),
+):
+    """Add a reference record. Creates the lineage if it is new."""
+    from . import canon
+
+    if what_it_does:
+        canon.add_lineage(lineage, what_it_does)
+    entry = canon.add_anchor(lineage, artist, track, note)
+    console.print(f"✓ {lineage}: {len(entry['anchors'])} anchor(s)")
+
+
+# ---------------------------------------------------------------- graph
+
+@graph_app.command("stats")
+def graph_stats(as_json: bool = typer.Option(False, "--json")):
+    """Size and composition of the credits graph."""
+    from . import graph
+
+    data = graph.stats()
+    if as_json:
+        _emit_json(data)
+        return
+    out.print(f"{data['nodes']} nodes, {data['edges']} edges")
+    out.print(f"attested share: {data['attested_share']}")
+    for kind, n in sorted(data["edges_by_kind"].items(), key=lambda x: -x[1]):
+        out.print(f"    {kind}: {n}")
+
+
+@graph_app.command("show")
+def graph_show(
+    name: str = typer.Argument(..., help="Artist, person, or label name."),
+    hops: int = typer.Option(config.GRAPH_MAX_HOPS, help="How far to walk."),
+    as_json: bool = typer.Option(False, "--json"),
+):
+    """Walk the graph out from one name and show what it connects to."""
+    from . import graph
+
+    nodes = graph.load_nodes()
+    seeds_found = [
+        nid for nid, n in nodes.items() if str(n.get("name", "")).lower() == name.lower()
+    ]
+    if not seeds_found:
+        _fail(f"'{name}' is not in the graph yet", code=2, as_json=as_json)
+    hops_out = graph.walk(seeds_found, max_hops=hops)
+    if as_json:
+        _emit_json(hops_out)
+        return
+    if not hops_out:
+        out.print(f"{name} is in the graph but has no edges yet.")
+        return
+    for hop in hops_out:
+        out.print(
+            f"[bold]{hop['name']}[/bold] [dim]({hop['kind']})[/dim] "
+            f"via {hop['via']}\n    [dim]{graph.path_phrase(hop, nodes)} "
+            f"· {hop['asserted_by']}[/dim]"
+        )
+
 
 @app.command()
 def doctor(

@@ -77,8 +77,10 @@ ignore = [
 # A dead source must never kill a dig (see the comment at the handler).
 "src/crate/fetchers.py" = ["BLE001"]
 # Weighted source rotation is not cryptography, and the Random instance is
-# injectable precisely so tests can pin it.
-"src/crate/pipeline/source.py" = ["S311"]
+# injectable precisely so tests can pin it. BLE001 is the graph pass holding the
+# same contract fetchers do: a thin credits graph means a smaller dig, never a
+# failed one.
+"src/crate/pipeline/source.py" = ["S311", "BLE001"]
 # TOKEN_URL is Spotify's public OAuth endpoint. S105 matches on the name.
 "src/crate/spotify.py" = ["S105"]
 # PERF401: the flagged append sits inside a nested loop over JSONL lines with a

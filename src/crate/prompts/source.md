@@ -14,6 +14,21 @@ web access):
 {{material_json}}
 ```
 
+## Credits-graph leads
+
+People and labels one or two hops out from tonight's material and from the
+listener's canon, pulled from **Discogs release credits** — these are attested,
+not guessed. `path` is how each was reached.
+
+```json
+{{graph_leads_json}}
+```
+
+These are leads to dig, not candidates. A name here means "this person's other
+work is worth checking tonight", nothing more — you still have to find the music
+and say why it belongs. An empty list just means the graph is thin tonight; dig
+the sources normally.
+
 ## The listener
 
 Taste profile:
@@ -54,6 +69,10 @@ Rules:
   the assigned source names, and `why` must say concretely how that source
   vouches for it (which episode, which reissue, which article, which credit
   chain).
+- A lead from the credits graph does NOT become the source. The registry source
+  that started the chain stays the source; put the hop in `why` and name who
+  attested it — "via WFMU's play of X → arranger Y (Discogs credit) → this".
+  How a record was found is part of what it means, so the path is the record.
 - Range matters: spread across eras, regions, and textures. Do not let one
   source or one sound dominate.
 - Include a handful of candidates that stretch beyond the taste profile —

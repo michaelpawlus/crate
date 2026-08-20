@@ -1,6 +1,7 @@
 # Rewiring the brain — implementation plan for `curator-dna-spec.md`
 
-Status: **proposed, not started.** Written 2026-08-20 against commit `9e2e711`.
+Status: Phases 0 and 1 **done** (2026-08-20); Phases 2-5 proposed.
+Written 2026-08-20 against commit `9e2e711`.
 
 The spec (`curator-dna-spec.md`) is a behavioral taxonomy, not an architecture.
 This maps its 16 patterns onto CRATE's actual modules, in the order that most
@@ -91,7 +92,7 @@ and only then rewire the learning rules that consume it.
 
 ---
 
-## 2. Phase 1 — Judgment: lineage over vibes (P9, P10, P13, P3, P4-prior)
+## 2. Phase 1 — Judgment: lineage over vibes (P9, P13, P3, P4-prior) — DONE
 
 The biggest immediate lever, and it needs no feedback history.
 
@@ -143,6 +144,16 @@ The biggest immediate lever, and it needs no feedback history.
 
 **Tests**: graph store, traversal, scoring with incentive, canon load — all
 deterministic, network mocked, per the house convention.
+
+**Deferred out of Phase 1: scene entities (P10).** The plan scoped `scene` as a
+first-class node kind with `crate scenes dive`, and it was not built. The node
+kind exists in `graph.NODE_KINDS` and `scene-member` is a declared edge kind, but
+nothing writes them and there is no scene command. Two reasons to do it after
+Phase 2 rather than inside Phase 1: nothing populates scenes automatically —
+Discogs has no scene concept, so they have to be asserted, which makes them the
+first *interpretive* edges in a graph that is currently 100% attested — and P16's
+recontextualization move is the thing that actually consumes them. Building the
+consumer and the data together is the better order.
 
 ---
 
@@ -229,7 +240,7 @@ Now that queue verdicts exist, the update rules are worth changing.
 
 ---
 
-## 7. Phase 0 — Do first, small
+## 7. Phase 0 — Do first, small — DONE
 
 1. **Back up `~/.crate`.** `CLAUDE.md` says it exists on exactly one machine and
    nothing backs it up. Phases 1, 3, and 4 all migrate files in it.

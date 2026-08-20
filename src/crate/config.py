@@ -37,6 +37,14 @@ def cache_dir() -> Path:
     return crate_home() / "cache"
 
 
+def graph_dir() -> Path:
+    return crate_home() / "graph"
+
+
+def canon_path() -> Path:
+    return crate_home() / "canon.yaml"
+
+
 def manual_dir() -> Path:
     return cache_dir() / "manual"
 
@@ -64,6 +72,69 @@ DRIFT_CONTRACTION_LIMIT = 0.30
 # Meta-feedback cadence ("are these getting more or less surprising?").
 META_FEEDBACK_EVERY = 5
 
+# --- Source incentive priors (P4). Multiplies how much a source's vouching
+# counts, never the track itself. Gioia's master heuristic is "is this source
+# paid to promote?", so the axis is structural self-interest, not quality:
+# a label reissuing a record is promoting its own product even when its
+# curation is excellent. Constants, like everything else in this block —
+# the learning loop tunes trust, never the incentive prior. ---
+
+INCENTIVE_PENALTY = {
+    "none": 1.0,
+    "low": 0.9,
+    "medium": 0.75,
+    "promotional": 0.5,
+}
+DEFAULT_INCENTIVE = "low"
+
+# Fallback when a source predates the field and isn't in the seed table.
+INCENTIVE_BY_TYPE = {
+    "radio": "none",
+    "individual": "none",
+    "list-community": "none",
+    "publication": "low",
+    "reissue-label": "low",
+}
+
+
+def incentive_factor(source: dict) -> float:
+    """Prior multiplier for one source's endorsement."""
+    key = str(source.get("incentive") or DEFAULT_INCENTIVE)
+    return INCENTIVE_PENALTY.get(key, INCENTIVE_PENALTY[DEFAULT_INCENTIVE])
+
+
+# --- Credits graph (P9/P10/P13) ---
+
+# How many records a single dig seeds the traversal from, and how far it walks.
+GRAPH_SEEDS_PER_RUN = 6
+GRAPH_MAX_HOPS = 2
+# Hard ceiling on Discogs calls per dig. Unauthenticated Discogs allows 25
+# req/min; cached_fetch absorbs repeats, but a cold dig must still not stall.
+GRAPH_REQUEST_BUDGET = 40
+# Credit roles worth traversing. Everything else on a release (photography,
+# liner notes, mastering) is real provenance but a poor predictor of sound.
+GRAPH_CREATIVE_ROLES = (
+    "producer",
+    "arranged by",
+    "arranger",
+    "written-by",
+    "composed by",
+    "directed by",
+    "conductor",
+    "bass",
+    "drums",
+    "guitar",
+    "keyboards",
+    "piano",
+    "organ",
+    "saxophone",
+    "trumpet",
+    "percussion",
+    "vocals",
+    "engineer",
+    "mixed by",
+)
+
 # --- Run defaults ---
 
 DEFAULT_LENGTH = 15
@@ -84,5 +155,5 @@ CACHE_TTL_SECONDS = 24 * 3600
 
 
 def ensure_dirs() -> None:
-    for d in (crate_home(), history_dir(), cache_dir(), manual_dir()):
+    for d in (crate_home(), history_dir(), cache_dir(), manual_dir(), graph_dir()):
         d.mkdir(parents=True, exist_ok=True)

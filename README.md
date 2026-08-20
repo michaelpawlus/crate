@@ -93,8 +93,13 @@ crate taste                         # current taste.md + learned signals
 crate taste edit                    # open taste.md in $EDITOR
 crate sources list                  # the trusted-source registry with weights
 crate sources ingest "NTS" < tracklist.txt   # manual ingest — always works
+crate sources migrate               # write newly-added registry fields to disk
+crate canon list                    # the references judgment is anchored against
+crate canon add "Ethio-jazz" "Mulatu Astatke" "Yekermo Sew"
+crate graph stats                   # size of the credits graph
+crate graph show "Alice Coltrane"   # who and what she connects to
 crate history list
-crate doctor                        # auth, agent, source health, drift check
+crate doctor                        # auth, agent, source health, graph, drift
 ```
 
 Read commands support `--json` (JSON to stdout, human messages to stderr).

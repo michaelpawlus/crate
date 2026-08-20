@@ -22,7 +22,9 @@ crate dig [--brief "..."] [--length N] [--dry-run] [--offline] [--notify] [--jso
 crate publish [stamp] [--force] [--json]
 crate feedback [stamp] [--quick "..."] [--yes] [--json]
 crate taste | crate taste edit
-crate sources list|add|weight|ingest
+crate sources list|add|weight|ingest|migrate
+crate canon list|add
+crate graph stats|show
 crate history list|show
 crate doctor [--json] [--skip-sources]
 ```
@@ -50,8 +52,24 @@ directly.
   double-count `playlists_generated` and skew the drift-audit and
   meta-feedback cadences that key off it.
 - `config.py` — anti-convergence guardrail constants (exploration floor 20%,
-  source weight floor 0.1, high-stretch skip discount ⅓). These are
-  deliberately constants, NOT state: the learning loop must never tune them.
+  source weight floor 0.1, high-stretch skip discount ⅓, incentive penalties,
+  graph hop/request budgets). These are deliberately constants, NOT state: the
+  learning loop must never tune them.
+- `graph.py` / `lineage.py` / `discogs.py` / `musicbrainz.py` — the credits
+  graph (curator-DNA P9/P13). Discogs supplies attested personnel edges;
+  MusicBrainz supplies identity and release awareness; Spotify is resolution
+  only. SOURCE walks the graph out from the canon and tonight's material and
+  hands the agent *leads*, never candidates — a traversal must never become a
+  track's source, and the path goes in `why`. Graph state is two JSONL files
+  under `~/.crate/graph/`, hand-editable like everything else.
+- `canon.py` — the reference corpus judgment is anchored against (P3), by
+  lineage rather than genre. Starts empty on purpose; a canon seeded with
+  someone else's records is the imposed taste this tool exists to avoid.
+- Sources carry an `incentive` (P4). It discounts a source's *vouching* in
+  `triangulate.score`, never the music: fit and stretch arrive undiscounted
+  because they come from judging the record itself. Registries written before
+  the field get it backfilled in memory by `state.load_sources`;
+  `crate sources migrate` writes it down so the prior is visible and editable.
 - `docs/curator-model.md` — the digger playbook the SOURCE agent executes.
 - `docs/source-access.md` — verified access methods per source (July 2026).
 
@@ -150,6 +168,8 @@ tooling invokes `crate` non-interactively.
 | Learned signals | `~/.crate/taste-signals.json` | **Irreplaceable.** Source trust weights, stretch budget, mood priors — the accumulated result of every feedback session |
 | Playlist history | `~/.crate/history/` | **Irreplaceable.** Every past playlist, liner notes, and feedback log |
 | Exclusions | `~/.crate/exclusions.json` | Freshness dedup resets; previously-used tracks can repeat |
+| Canon corpus | `~/.crate/canon.yaml` | TRIANGULATE judges against taste.md alone. **Hand-built — not regenerable.** |
+| Credits graph | `~/.crate/graph/*.jsonl` | Rebuilds itself over subsequent digs, at ~6 Discogs requests each |
 
 `~/.crate` did not survive the migration and was rebuilt from scratch on
 2026-07-29 — the WSL2 box was gone before it was copied. Everything marked
