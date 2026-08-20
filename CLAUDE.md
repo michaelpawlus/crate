@@ -170,14 +170,21 @@ represents months of feedback again.
   local-civil-date semantics rather than reaching for `now_iso()`. `DTZ011` is
   ignored in `pyproject.toml` for this reason. This was invisible on WSL2, whose
   clock ran UTC.
-- Three `api`-tier sources are currently dead, confirmed by `crate doctor` on
-  2026-07-29: **NTS** (404 — unofficial endpoint moved), **BBC 6 Music** (400 —
-  request shape no longer accepted), and **r/listentothis** (403 — Reddit
-  rejects generic user agents; needs a real `User-Agent` header, not a different
-  network). `crate doctor` exits 1 whenever any source is dead, so a non-zero
-  exit does not mean the install is broken. `fetchers.gather_source_material`
-  swallows these by design — a dead source must never kill a dig — so digs still
-  run, just with a smaller pool.
+- `crate doctor` exits 1 whenever **any** source is dead, so a non-zero exit does
+  not mean the install is broken. `fetchers.gather_source_material` swallows
+  source failures by design — a dead source must never kill a dig — so digs still
+  run, just with a smaller pool. NTS, BBC 6 Music and r/listentothis were dead on
+  2026-07-29 and were all fixed the next day in `5e7ae8e`; each diagnosis differed
+  from the obvious guess, and `docs/source-access.md` records what they actually
+  were. Expect NTS **show aliases** in particular to keep rotting — enumerate
+  current ones at `/api/v2/shows`.
+- Spotify serves no audio intelligence to this app: `audio-features` and
+  `audio-analysis` both answer a bare `403` and `/recommendations` a `404`
+  (probed 2026-08-20). There is no tempo/key/energy/section data to be had, so
+  anything wanting intra-song structure must assert it rather than measure it.
+  Same for credits: **MusicBrainz recording relationships are empty** even for
+  canonical records, while **Discogs `extraartists` is rich and needs no token**.
+  Details and the probe transcript live in `docs/source-access.md`.
 - `docs/source-access.md` was originally audited from WSL2 behind **datacenter
   egress**. That turned out not to matter: the 2026-07-29 re-check found no
   source helped by residential egress and no failure caused by blocking. When a

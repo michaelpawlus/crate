@@ -48,6 +48,52 @@ browser-grade clients. Re-verify before building ingestion — unofficial endpoi
 >   a browser UA is rate-limited to `429` immediately. Titles carry the metadata
 >   inline: `Artist - Track [genre] (year)`.
 
+> **Probed 2026-08-20** while planning the curator-DNA rewire
+> (`docs/curator-dna-plan.md`). These are the substrates the graph and
+> release-awareness layers depend on, so they were tested before being designed
+> against.
+>
+> **Spotify's audio-intelligence endpoints are gone for this app.** With the
+> stored token from `~/.crate/auth.json`:
+>
+> | Endpoint | Result |
+> |---|---|
+> | `GET /v1/audio-features/{id}` | `403`, bare `{"error":{"status":403}}` |
+> | `GET /v1/audio-analysis/{id}` | `403`, same bare body |
+> | `GET /v1/recommendations?seed_tracks=…` | `404` |
+>
+> A bare 403 with no "insufficient scope" message is the removed/restricted
+> signature already documented in `CLAUDE.md` for `/playlists/{id}/tracks`.
+> There is no per-track energy, key, tempo, or section data available. Anything
+> that wants intra-song structure has to assert it, not measure it.
+>
+> **MusicBrainz recording relationships are effectively empty for this corpus.**
+> `GET /ws/2/recording/{mbid}?inc=artist-rels+work-rels+recording-rels` returned
+> `[]` for D'Angelo "Devil's Pie", Alice Coltrane "Journey in Satchidananda", and
+> Mulatu Astatke "Yekermo Sew"; James Brown "Funky Drummer" returned a single
+> `performance` work-rel and no personnel. MusicBrainz is **not** a credits
+> source for the music CRATE digs. (Search itself is fine — the recording lookups
+> all resolved; the relationship payloads are just unpopulated. Note also that
+> `/ws/2/isrc/…` answered `503 currently busy` on the first attempt: MB sheds
+> load under pressure, so treat 503 as retry-later, not as dead.)
+>
+> **Discogs is the credits graph, and it needs no token.** Unauthenticated
+> `GET /database/search?type=release` and `GET /releases/{id}` both `200`.
+> `extraartists` on an obscure 1972 Hispavox release carried
+> `Arranged By [Arreglos]`, `Directed By [Dirección Musical]`, `Guitar` (×2) and
+> `Written-by` (×3) — real personnel edges, on exactly the kind of release the
+> registry's reissue labels point at. Rate limit is 25 req/min unauthenticated,
+> 60 with a free personal token; the existing `fetchers.cached_fetch` layer
+> matters here.
+>
+> **MusicBrainz keeps the release-awareness job.** `GET /ws/2/release?query=
+> label:"Analog Africa"` returns clean label catalogs, and NTS tracklists already
+> carry per-track ISRC/MBID (§1 below) — a free identity bridge from "a trusted
+> DJ played this" into the graph.
+>
+> Division of labour that follows: **Discogs = credits graph, MusicBrainz =
+> identity and release awareness, Spotify = resolution and delivery only.**
+
 Verdict key: `access: api | rss | scrape | manual` (best available tier; a source can
 also support lower tiers).
 
