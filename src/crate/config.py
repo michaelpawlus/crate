@@ -37,6 +37,14 @@ def cache_dir() -> Path:
     return crate_home() / "cache"
 
 
+def graph_dir() -> Path:
+    return crate_home() / "graph"
+
+
+def canon_path() -> Path:
+    return crate_home() / "canon.yaml"
+
+
 def manual_dir() -> Path:
     return cache_dir() / "manual"
 
@@ -64,6 +72,107 @@ DRIFT_CONTRACTION_LIMIT = 0.30
 # Meta-feedback cadence ("are these getting more or less surprising?").
 META_FEEDBACK_EVERY = 5
 
+# --- Source incentive priors (P4). Multiplies how much a source's vouching
+# counts, never the track itself. Gioia's master heuristic is "is this source
+# paid to promote?", so the axis is structural self-interest, not quality:
+# a label reissuing a record is promoting its own product even when its
+# curation is excellent. Constants, like everything else in this block —
+# the learning loop tunes trust, never the incentive prior. ---
+
+INCENTIVE_PENALTY = {
+    "none": 1.0,
+    "low": 0.9,
+    "medium": 0.75,
+    "promotional": 0.5,
+}
+DEFAULT_INCENTIVE = "low"
+
+# Fallback when a source predates the field and isn't in the seed table.
+INCENTIVE_BY_TYPE = {
+    "radio": "none",
+    "individual": "none",
+    "list-community": "none",
+    "publication": "low",
+    "reissue-label": "low",
+}
+
+
+def incentive_factor(source: dict) -> float:
+    """Prior multiplier for one source's endorsement."""
+    key = str(source.get("incentive") or DEFAULT_INCENTIVE)
+    return INCENTIVE_PENALTY.get(key, INCENTIVE_PENALTY[DEFAULT_INCENTIVE])
+
+
+# --- Credits graph (P9/P10/P13) ---
+
+# How many records a single dig seeds the traversal from, and how far it walks.
+GRAPH_SEEDS_PER_RUN = 6
+# Ceiling on the share of those seeds the canon may take. Without it a canon of
+# any real size eats every slot, the traversal re-walks the same stable records
+# every night, and the graph stops growing from what the sources actually played
+# — which is the half of the seed mix that is supposed to be live.
+CANON_SEED_SHARE = 0.5
+GRAPH_MAX_HOPS = 2
+# Hard ceiling on Discogs calls per dig. Unauthenticated Discogs allows 25
+# req/min; cached_fetch absorbs repeats, but a cold dig must still not stall.
+GRAPH_REQUEST_BUDGET = 40
+# Credit roles worth traversing. Everything else on a release (photography,
+# liner notes, mastering) is real provenance but a poor predictor of sound.
+GRAPH_CREATIVE_ROLES = (
+    "producer",
+    "arranged by",
+    "arranger",
+    "written-by",
+    "composed by",
+    "directed by",
+    "conductor",
+    "bass",
+    "drums",
+    "guitar",
+    "keyboards",
+    "piano",
+    "organ",
+    "saxophone",
+    "trumpet",
+    "percussion",
+    "vocals",
+    "engineer",
+    "mixed by",
+)
+
+# --- Selection shape ---
+
+# No single source may supply more than this share of a playlist. Source
+# rotation picks 4-7 sources but says nothing about how the slots divide, so a
+# run that happens to draw several reissue labels can come back geographically
+# wide and structurally narrow — nine of fifteen from two labels, which is one
+# label's taste wearing a playlist's clothes.
+#
+# 0.30 gives 4 slots of a 15-track playlist. It is bounded below by
+# SOURCES_PER_RUN_MIN: with only four sources in a run the cap must still admit
+# ceil(15/4) = 4, or every dig falls through to the yield path and the cap does
+# nothing. Kept at the tightest value that stays satisfiable there — at 0.34 the
+# cap was 5, which let three sources own an entire playlist between them.
+MAX_SOURCE_SHARE = 0.30
+
+# Source rotation aims for at least this many distinct source *types* (radio,
+# reissue-label, publication, list-community, individual). Types are proxies for
+# how a source finds music; a set drawn entirely from one type asks the same
+# question five ways.
+MIN_SOURCE_TYPES = 3
+
+# TRIANGULATE's `fit` is an absolute 0-1 judgement in the prompt but is only
+# ever used to rank one dig's pool against itself, and agents compress absolute
+# ratings badly (an observed run: 15 tracks, four distinct fit values, all
+# between 0.75 and 0.85). Scoring therefore uses fit's rank within the batch.
+# Below this many distinct values, the ratings carry no ordering worth using and
+# the dig says so rather than pretending to rank.
+MIN_DISTINCT_FIT_VALUES = 3
+# A stretch column this uniform means the stretch budget is learning nothing —
+# reported, not corrected, because stretch is calibrated against
+# HIGH_STRETCH_THRESHOLD and rescaling it would break that meaning.
+DEGENERATE_RATING_SHARE = 0.8
+
 # --- Run defaults ---
 
 DEFAULT_LENGTH = 15
@@ -84,5 +193,5 @@ CACHE_TTL_SECONDS = 24 * 3600
 
 
 def ensure_dirs() -> None:
-    for d in (crate_home(), history_dir(), cache_dir(), manual_dir()):
+    for d in (crate_home(), history_dir(), cache_dir(), manual_dir(), graph_dir()):
         d.mkdir(parents=True, exist_ok=True)

@@ -1,10 +1,19 @@
 """Seed data written by `crate init`: the initial trusted-source registry and
-the taste.md template used before the interview has run."""
+the taste.md template used before the interview has run.
+
+`incentive` (P4) is the master heuristic from the curator-DNA spec: source value
+is inversely correlated with promotional incentive. It scores *structural
+self-interest*, not quality — a label with impeccable taste still profits from
+the record it is recommending. `config.INCENTIVE_PENALTY` turns it into a
+multiplier on how much that source's vouching counts in TRIANGULATE. The
+per-source reasoning is inline below; disagree with any of it by editing
+`~/.crate/sources.yaml`, which is authoritative."""
 
 SEED_SOURCES: list[dict] = [
     # --- Radio / shows ---
     {
         "name": "NTS",
+        "incentive": "none",
         "type": "radio",
         "access": "api",
         "endpoint": "https://www.nts.live/api/v2",
@@ -19,6 +28,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "WFMU",
+        "incentive": "none",
         "type": "radio",
         "access": "rss",
         "endpoint": "https://wfmu.org/playlistfeed.xml",
@@ -28,6 +38,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "dublab",
+        "incentive": "none",
         "type": "radio",
         "access": "manual",
         "endpoint": "https://www.dublab.com",
@@ -37,6 +48,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Worldwide FM",
+        "incentive": "low",
         "type": "radio",
         "access": "manual",
         "endpoint": "https://worldwidefm.net",
@@ -46,6 +58,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "The Lot Radio",
+        "incentive": "none",
         "type": "radio",
         "access": "manual",
         "endpoint": "https://www.thelotradio.com",
@@ -55,6 +68,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "BBC 6 Music",
+        "incentive": "medium",
         "type": "radio",
         "access": "api",
         "endpoint": "https://rms.api.bbc.co.uk/v2/services/bbc_6music/segments/latest",
@@ -65,6 +79,7 @@ SEED_SOURCES: list[dict] = [
     # --- Reissue labels (meta-diggers) ---
     {
         "name": "Numero Group",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "web",
         "endpoint": "https://numerogroup.bandcamp.com",
@@ -74,6 +89,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Light in the Attic",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "web",
         "endpoint": "https://lightintheattic.net",
@@ -83,6 +99,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Analog Africa",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "web",
         "endpoint": "https://analogafrica.bandcamp.com",
@@ -92,6 +109,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Soundway",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "web",
         "endpoint": "https://soundwayrecords.bandcamp.com",
@@ -101,6 +119,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Habibi Funk",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "web",
         "endpoint": "https://habibifunkrecords.bandcamp.com",
@@ -110,6 +129,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Strut",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "web",
         "endpoint": "https://strut.bandcamp.com",
@@ -119,6 +139,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Mississippi Records",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "manual",
         "endpoint": "https://mississippirecords.net",
@@ -128,6 +149,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Awesome Tapes From Africa",
+        "incentive": "low",
         "type": "reissue-label",
         "access": "web",
         "endpoint": "https://awesometapesfromafrica.bandcamp.com",
@@ -138,6 +160,7 @@ SEED_SOURCES: list[dict] = [
     # --- Publications / blogs ---
     {
         "name": "Bandcamp Daily",
+        "incentive": "medium",
         "type": "publication",
         "access": "rss",
         "endpoint": "https://daily.bandcamp.com/feed",
@@ -147,6 +170,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Aquarium Drunkard",
+        "incentive": "low",
         "type": "publication",
         "access": "rss",
         "endpoint": "https://aquariumdrunkard.com/feed/",
@@ -156,6 +180,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "The Quietus",
+        "incentive": "low",
         "type": "publication",
         "access": "rss",
         "endpoint": "https://thequietus.com/feed",
@@ -165,6 +190,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Passion of the Weiss",
+        "incentive": "low",
         "type": "publication",
         "access": "rss",
         "endpoint": "https://powmag.net/feed",
@@ -175,6 +201,7 @@ SEED_SOURCES: list[dict] = [
     # --- Communities / lists ---
     {
         "name": "Rate Your Music",
+        "incentive": "none",
         "type": "list-community",
         "access": "manual",
         "endpoint": "https://rateyourmusic.com",
@@ -184,6 +211,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Discogs",
+        "incentive": "none",
         "type": "list-community",
         "access": "api",
         "endpoint": "https://api.discogs.com",
@@ -193,6 +221,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "r/listentothis",
+        "incentive": "none",
         "type": "list-community",
         "access": "api",
         "endpoint": "https://www.reddit.com/r/listentothis/top.rss?t=month",
@@ -203,6 +232,7 @@ SEED_SOURCES: list[dict] = [
     # --- Individuals (via their shows, mixes, published lists) ---
     {
         "name": "Gilles Peterson",
+        "incentive": "low",
         "type": "individual",
         "access": "web",
         "endpoint": "https://worldwidefm.net",
@@ -212,6 +242,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Floating Points",
+        "incentive": "none",
         "type": "individual",
         "access": "web",
         "endpoint": "https://www.nts.live/shows/floating-points",
@@ -221,6 +252,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Madlib / Egon (Now-Again)",
+        "incentive": "low",
         "type": "individual",
         "access": "web",
         "endpoint": "https://nowagainrecords.bandcamp.com",
@@ -230,6 +262,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Zach Cowie",
+        "incentive": "none",
         "type": "individual",
         "access": "manual",
         "endpoint": "",
@@ -239,6 +272,7 @@ SEED_SOURCES: list[dict] = [
     },
     {
         "name": "Jamz Supernova",
+        "incentive": "none",
         "type": "individual",
         "access": "web",
         "endpoint": "https://www.nts.live/shows/jamz-supernova",

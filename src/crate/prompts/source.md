@@ -14,6 +14,21 @@ web access):
 {{material_json}}
 ```
 
+## Credits-graph leads
+
+People and labels one or two hops out from tonight's material and from the
+listener's canon, pulled from **Discogs release credits** — these are attested,
+not guessed. `path` is how each was reached.
+
+```json
+{{graph_leads_json}}
+```
+
+These are leads to dig, not candidates. A name here means "this person's other
+work is worth checking tonight", nothing more — you still have to find the music
+and say why it belongs. An empty list just means the graph is thin tonight; dig
+the sources normally.
+
 ## The listener
 
 Taste profile:
@@ -54,19 +69,49 @@ Rules:
   the assigned source names, and `why` must say concretely how that source
   vouches for it (which episode, which reissue, which article, which credit
   chain).
+- A lead from the credits graph does NOT become the source. The registry source
+  that started the chain stays the source; put the hop in `why` and name who
+  attested it — "via WFMU's play of X → arranger Y (Discogs credit) → this".
+  How a record was found is part of what it means, so the path is the record.
 - Range matters: spread across eras, regions, and textures. Do not let one
-  source or one sound dominate.
+  source or one sound dominate. No single source should account for more than
+  about a third of your pool — if one assigned source is doing most of the
+  work, you have stopped digging and started transcribing.
+- **Look for corroboration.** Before you finish, re-read the other sources'
+  material and ask which of your candidates *another* assigned source also
+  vouches for. Two independent sources landing on the same record is the
+  strongest quality signal in this whole system, and it is invisible unless you
+  look for it deliberately — you are working one source at a time, so nothing
+  else will find it. Put every corroborating source in `also_seen_in`. Only
+  name a source that genuinely vouches for it; an invented second voucher is
+  worse than none.
 - Include a handful of candidates that stretch beyond the taste profile —
   grounded stretches, not randomness.
 - Real tracks only. If you are not confident a recording exists, leave it out.
+- **`year` is when the music was made, not when a label put it out again.** A
+  1977 Zimbabwean single on a 2025 Analog Africa compilation is `"year": "1977",
+  "reissue_year": "2025"` — never `"year": "2025"`. Most of what the reissue
+  labels surface is decades old and the catalogue date is the reissue; getting
+  this wrong makes the liner notes lie and tells the drift audit a crate of
+  1970s records is a contemporary dig. If you only know the decade, say
+  `"1970s"`. If you genuinely do not know, leave `year` empty rather than
+  filling it with the reissue date.
 
 Return JSON:
 
 ```json
 {"candidates": [
-  {"track": "…", "artist": "…", "album": "…", "year": "1974",
+  {"track": "…", "artist": "…", "album": "…",
+   "year": "1974", "reissue_year": "2016",
    "region": "…", "source": "<assigned source name>",
    "source_type": "radio|reissue-label|publication|list-community|individual",
-   "why": "…"}
+   "why": "…",
+   "also_seen_in": [
+     {"source": "<another assigned source>", "why": "how that one vouches for it"}
+   ]}
 ]}
 ```
+
+`reissue_year` and `also_seen_in` are optional — omit them rather than guessing.
+Keep each `why` to one or two sentences; a long pool of long strings is what
+makes a response run out of room before it is finished.

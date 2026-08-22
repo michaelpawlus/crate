@@ -22,7 +22,9 @@ crate dig [--brief "..."] [--length N] [--dry-run] [--offline] [--notify] [--jso
 crate publish [stamp] [--force] [--json]
 crate feedback [stamp] [--quick "..."] [--yes] [--json]
 crate taste | crate taste edit
-crate sources list|add|weight|ingest
+crate sources list|add|weight|ingest|migrate
+crate canon list|add
+crate graph stats|show
 crate history list|show
 crate doctor [--json] [--skip-sources]
 ```
@@ -50,8 +52,28 @@ directly.
   double-count `playlists_generated` and skew the drift-audit and
   meta-feedback cadences that key off it.
 - `config.py` — anti-convergence guardrail constants (exploration floor 20%,
-  source weight floor 0.1, high-stretch skip discount ⅓). These are
-  deliberately constants, NOT state: the learning loop must never tune them.
+  source weight floor 0.1, high-stretch skip discount ⅓, incentive penalties,
+  graph hop/request budgets). These are deliberately constants, NOT state: the
+  learning loop must never tune them.
+- `graph.py` / `lineage.py` / `discogs.py` / `musicbrainz.py` — the credits
+  graph (curator-DNA P9/P13). Discogs supplies attested personnel edges;
+  MusicBrainz supplies identity and release awareness; Spotify is resolution
+  only. SOURCE walks the graph out from the canon and tonight's material and
+  hands the agent *leads*, never candidates — a traversal must never become a
+  track's source, and the path goes in `why`. Graph state is two JSONL files
+  under `~/.crate/graph/`, hand-editable like everything else.
+- `canon.py` — the reference corpus judgment is anchored against (P3), by
+  lineage rather than genre. Starts empty on purpose; a canon seeded with
+  someone else's records is the imposed taste this tool exists to avoid.
+- Sources carry an `incentive` (P4). It discounts a source's *vouching* in
+  `triangulate.score`, never the music: fit and stretch arrive undiscounted
+  because they come from judging the record itself. Registries written before
+  the field get it backfilled in memory by `state.load_sources`;
+  `crate sources migrate` writes it down so the prior is visible and editable.
+- `docs/curator-dna-plan.md` — **the active work thread.** Implementation plan
+  for `curator-dna-spec.md` (a behavioural taxonomy of elite curators).
+  Phases 0-1 are done and exercised live; §9 is the retrospective and the
+  open items, and is where to start.
 - `docs/curator-model.md` — the digger playbook the SOURCE agent executes.
 - `docs/source-access.md` — verified access methods per source (July 2026).
 
@@ -150,6 +172,8 @@ tooling invokes `crate` non-interactively.
 | Learned signals | `~/.crate/taste-signals.json` | **Irreplaceable.** Source trust weights, stretch budget, mood priors — the accumulated result of every feedback session |
 | Playlist history | `~/.crate/history/` | **Irreplaceable.** Every past playlist, liner notes, and feedback log |
 | Exclusions | `~/.crate/exclusions.json` | Freshness dedup resets; previously-used tracks can repeat |
+| Canon corpus | `~/.crate/canon.yaml` | TRIANGULATE judges against taste.md alone. **Hand-built — not regenerable.** |
+| Credits graph | `~/.crate/graph/*.jsonl` | Rebuilds itself over subsequent digs, at ~6 Discogs requests each |
 
 `~/.crate` did not survive the migration and was rebuilt from scratch on
 2026-07-29 — the WSL2 box was gone before it was copied. Everything marked
@@ -170,14 +194,21 @@ represents months of feedback again.
   local-civil-date semantics rather than reaching for `now_iso()`. `DTZ011` is
   ignored in `pyproject.toml` for this reason. This was invisible on WSL2, whose
   clock ran UTC.
-- Three `api`-tier sources are currently dead, confirmed by `crate doctor` on
-  2026-07-29: **NTS** (404 — unofficial endpoint moved), **BBC 6 Music** (400 —
-  request shape no longer accepted), and **r/listentothis** (403 — Reddit
-  rejects generic user agents; needs a real `User-Agent` header, not a different
-  network). `crate doctor` exits 1 whenever any source is dead, so a non-zero
-  exit does not mean the install is broken. `fetchers.gather_source_material`
-  swallows these by design — a dead source must never kill a dig — so digs still
-  run, just with a smaller pool.
+- `crate doctor` exits 1 whenever **any** source is dead, so a non-zero exit does
+  not mean the install is broken. `fetchers.gather_source_material` swallows
+  source failures by design — a dead source must never kill a dig — so digs still
+  run, just with a smaller pool. NTS, BBC 6 Music and r/listentothis were dead on
+  2026-07-29 and were all fixed the next day in `5e7ae8e`; each diagnosis differed
+  from the obvious guess, and `docs/source-access.md` records what they actually
+  were. Expect NTS **show aliases** in particular to keep rotting — enumerate
+  current ones at `/api/v2/shows`.
+- Spotify serves no audio intelligence to this app: `audio-features` and
+  `audio-analysis` both answer a bare `403` and `/recommendations` a `404`
+  (probed 2026-08-20). There is no tempo/key/energy/section data to be had, so
+  anything wanting intra-song structure must assert it rather than measure it.
+  Same for credits: **MusicBrainz recording relationships are empty** even for
+  canonical records, while **Discogs `extraartists` is rich and needs no token**.
+  Details and the probe transcript live in `docs/source-access.md`.
 - `docs/source-access.md` was originally audited from WSL2 behind **datacenter
   egress**. That turned out not to matter: the 2026-07-29 re-check found no
   source helped by residential egress and no failure caused by blocking. When a

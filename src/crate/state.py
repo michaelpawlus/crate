@@ -47,7 +47,39 @@ def load_sources() -> list[dict[str, Any]]:
     if not path.exists():
         return []
     data = yaml.safe_load(path.read_text()) or {}
-    return data.get("sources", [])
+    sources, _ = backfill_source_defaults(data.get("sources", []))
+    return sources
+
+
+def backfill_source_defaults(
+    sources: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Fill fields added after a registry was written. Returns the sources and
+    the names that needed filling.
+
+    Done in memory on every load so an existing `~/.crate/sources.yaml` keeps
+    working untouched; `crate sources migrate` is what writes the values down,
+    because a prior you cannot see is a prior you cannot argue with. Named
+    seeds win over the per-type fallback: the seed table carries a considered
+    judgement per source, the fallback is only a guess from its category.
+    """
+    from .seeds import SEED_SOURCES
+
+    seeded = {s["name"].lower(): s for s in SEED_SOURCES}
+    filled: list[str] = []
+    for src in sources:
+        if src.get("incentive"):
+            continue
+        seed = seeded.get(str(src.get("name", "")).lower())
+        src["incentive"] = (
+            seed["incentive"]
+            if seed and seed.get("incentive")
+            else config.INCENTIVE_BY_TYPE.get(
+                str(src.get("type", "")), config.DEFAULT_INCENTIVE
+            )
+        )
+        filled.append(str(src.get("name", "")))
+    return sources, filled
 
 
 def save_sources(sources: list[dict[str, Any]]) -> None:

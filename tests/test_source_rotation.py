@@ -1,6 +1,7 @@
 import random
 
 from crate import config
+from crate.pipeline import source
 from crate.pipeline.source import pick_sources
 
 
@@ -35,3 +36,24 @@ def test_pick_count_in_range():
     rng = random.Random(1)
     picked = pick_sources(sources, {"last_source_set": []}, rng)
     assert config.SOURCES_PER_RUN_MIN <= len(picked) <= config.SOURCES_PER_RUN_MAX
+
+
+# --- the graph pass's degradation contract ---
+
+def test_graph_pass_is_skipped_offline():
+    """Every edge costs a live request, so an offline dig must not attempt one."""
+    result = source.graph_pass({"WFMU": {"material": []}}, offline=True)
+    assert result["leads"] == []
+    assert result["summary"] == {"skipped": "offline"}
+
+
+def test_graph_pass_degrades_instead_of_killing_the_dig(monkeypatch):
+    """A thin credits graph means a smaller dig, never a failed one — the same
+    contract fetchers holds for a dead source."""
+    def _boom(*a, **kw):
+        raise RuntimeError("discogs is down")
+
+    monkeypatch.setattr(source.lineage, "seed_records", _boom)
+    result = source.graph_pass({"WFMU": {"material": []}})
+    assert result["leads"] == []
+    assert "discogs is down" in result["summary"]["error"]

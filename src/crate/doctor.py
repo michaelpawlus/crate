@@ -1,8 +1,9 @@
-"""`crate doctor`: auth, agent backend, source health, cache status, drift."""
+"""`crate doctor`: auth, agent backend, source health, registry schema, cache
+status, credits graph, drift."""
 
 from typing import Any
 
-from . import agent, config, fetchers, learning, state
+from . import agent, config, fetchers, graph, learning, state
 
 
 def run_checks(check_sources: bool = True) -> dict[str, Any]:
@@ -22,6 +23,11 @@ def run_checks(check_sources: bool = True) -> dict[str, Any]:
 
     if check_sources and initialized:
         report["checks"]["sources"] = _check_sources()
+
+    if initialized:
+        report["checks"]["registry_schema"] = _check_registry_schema()
+
+    report["checks"]["graph"] = _check_graph()
 
     cache = config.cache_dir()
     n_cached = len(list(cache.glob("*.json"))) if cache.exists() else 0
@@ -65,3 +71,42 @@ def _check_sources() -> dict[str, Any]:
         results[source["name"]] = gathered["fetch_status"]
     dead = [k for k, v in results.items() if str(v).startswith("error")]
     return {"ok": not dead, "detail": results, "dead_sources": dead}
+
+
+def _check_registry_schema() -> dict[str, Any]:
+    """Report registry fields that are being defaulted in memory.
+
+    Not a failure — `load_sources` backfills them and digs work fine. It is
+    reported because an unwritten prior is an invisible one, and `incentive`
+    changes how much a source's vouching counts.
+    """
+    import yaml
+
+    raw = yaml.safe_load(config.sources_path().read_text()) or {}
+    _, filled = state.backfill_source_defaults(raw.get("sources", []))
+    if not filled:
+        return {"ok": True, "detail": "registry has every current field"}
+    return {
+        "ok": True,
+        "detail": (
+            f"{len(filled)} source(s) using a defaulted `incentive` — "
+            "run `crate sources migrate` to write the values down and edit them"
+        ),
+        "defaulted": filled,
+    }
+
+
+def _check_graph() -> dict[str, Any]:
+    """Credits-graph size. An empty graph is the expected state before the
+    first online dig, so it is never a failure — just worth saying, since a thin
+    graph means the lineage leads in SOURCE are thin too."""
+    data = graph.stats()
+    if not data["edges"]:
+        return {"ok": True, "detail": "empty — grows on the first online dig"}
+    return {
+        "ok": True,
+        "detail": (
+            f"{data['nodes']} nodes, {data['edges']} edges, "
+            f"{int(data['attested_share'] * 100)}% attested"
+        ),
+    }

@@ -1,13 +1,19 @@
 """SOURCE: the agentic core. Pick a rotated, exploration-respecting subset of
 the registry, gather deterministic material (feeds, NTS API, manual ingests),
-then hand the digger playbook to the agent to produce a provenance-attached
-candidate pool."""
+walk the credits graph out from tonight's material and the canon, then hand the
+digger playbook to the agent to produce a provenance-attached candidate pool.
+
+The graph pass (P9) supplies *attested facts* - who arranged the record, who
+played on it, which label put it out, straight from Discogs - as leads for the
+agent to dig. It never supplies candidates itself and never becomes a track's
+source: the registry source that started the chain stays the source, and the
+traversal path is recorded in `why` (P11)."""
 
 import json
 import random
 from typing import Any
 
-from .. import agent, config, fetchers, state
+from .. import agent, config, discogs, fetchers, lineage, state
 
 
 def pick_sources(
@@ -38,14 +44,31 @@ def pick_sources(
             pool.remove(choice)
         return picked
 
+    available_types = len({str(s.get("type", "")) for s in sources if s.get("type")})
+    want_types = min(config.MIN_SOURCE_TYPES, available_types, k)
+
+    best = None
     for _ in range(20):  # retry until the set differs from last run
         picked = weighted_sample(cold, n_cold_required)
         rest = [s for s in sources if s not in picked]
         picked += weighted_sample(rest, k - len(picked))
         names = {s["name"] for s in picked}
-        if names != last_set or len(sources) <= k:
+        if names == last_set and len(sources) > k:
+            continue
+        # Rotation guarantees a different *set* but says nothing about its
+        # shape, so a draw can come back as five reissue labels — wide
+        # geographically, narrow structurally, because every source in it finds
+        # music the same way. Keep the best-spread draw seen rather than
+        # rejecting outright: a thin registry may not be able to do better.
+        if best is None or type_spread(picked) > type_spread(best):
+            best = picked
+        if type_spread(picked) >= want_types:
             return picked
-    return picked
+    return best if best is not None else picked
+
+
+def type_spread(picked: list[dict[str, Any]]) -> int:
+    return len({str(s.get("type", "")) for s in picked if s.get("type")})
 
 
 def gather_material(picked: list[dict[str, Any]]) -> dict[str, Any]:
@@ -53,6 +76,24 @@ def gather_material(picked: list[dict[str, Any]]) -> dict[str, Any]:
     for source in picked:
         material[source["name"]] = fetchers.gather_source_material(source)
     return material
+
+
+def graph_pass(material: dict[str, Any], offline: bool = False) -> dict[str, Any]:
+    """Grow the credits graph from tonight's material and return the
+    neighborhood as digging leads.
+
+    Never raises: a thin graph makes for a smaller dig, not a failed one - the
+    same contract `fetchers.gather_source_material` holds for a dead source.
+    Skipped entirely when offline, since every edge here costs a live request.
+    """
+    if offline:
+        return {"leads": [], "summary": {"skipped": "offline"}}
+    try:
+        seeds = lineage.seed_records(material, limit=config.GRAPH_SEEDS_PER_RUN)
+        summary = lineage.build_from_records(seeds, budget=discogs.Budget())
+        return {"leads": lineage.neighborhood(seeds), "summary": summary}
+    except Exception as exc:
+        return {"leads": [], "summary": {"error": str(exc)}}
 
 
 def run_source_stage(
@@ -68,6 +109,7 @@ def run_source_stage(
         raise RuntimeError("No sources in registry. Run `crate init` first.")
 
     material = gather_material(picked)
+    graph_material = graph_pass(material, offline=dry_run_offline)
     exclusions = state.load_exclusions()
 
     playbook = agent.load_prompt("curator-model")
@@ -94,6 +136,9 @@ def run_source_stage(
             indent=1,
         ),
         material_json=json.dumps(material, indent=1, default=str)[:60000],
+        graph_leads_json=json.dumps(
+            graph_material["leads"], indent=1, ensure_ascii=False
+        )[:12000],
         exclusions_json=json.dumps(
             {
                 "artists": exclusions.get("artists", []),
@@ -119,6 +164,15 @@ def run_source_stage(
             continue
         if state.is_excluded(exclusions, c["artist"], c["track"]):
             continue
+        # Corroboration may only name sources that are actually in the registry,
+        # for the same reason `source` must: an unverifiable second voucher is
+        # worth less than none, and cross-source agreement is 25% of the score.
+        also = []
+        for extra in c.get("also_seen_in") or []:
+            name = str(extra.get("source", "") if isinstance(extra, dict) else extra).strip()
+            if name in all_names and name != src:
+                also.append(extra)
+        c["also_seen_in"] = also
         cleaned.append(c)
     if len(cleaned) < run_spec["length"]:
         raise RuntimeError(
