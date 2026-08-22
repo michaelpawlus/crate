@@ -147,7 +147,13 @@ GRAPH_CREATIVE_ROLES = (
 # run that happens to draw several reissue labels can come back geographically
 # wide and structurally narrow — nine of fifteen from two labels, which is one
 # label's taste wearing a playlist's clothes.
-MAX_SOURCE_SHARE = 0.34
+#
+# 0.30 gives 4 slots of a 15-track playlist. It is bounded below by
+# SOURCES_PER_RUN_MIN: with only four sources in a run the cap must still admit
+# ceil(15/4) = 4, or every dig falls through to the yield path and the cap does
+# nothing. Kept at the tightest value that stays satisfiable there — at 0.34 the
+# cap was 5, which let three sources own an entire playlist between them.
+MAX_SOURCE_SHARE = 0.30
 
 # Source rotation aims for at least this many distinct source *types* (radio,
 # reissue-label, publication, list-community, individual). Types are proxies for
