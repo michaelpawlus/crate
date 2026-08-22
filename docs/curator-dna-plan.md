@@ -1,7 +1,8 @@
 # Rewiring the brain — implementation plan for `curator-dna-spec.md`
 
-Status: Phases 0 and 1 **done** (2026-08-20); Phases 2-5 proposed.
-Written 2026-08-20 against commit `9e2e711`.
+Status: Phases 0 and 1 **done and exercised in a live dig** (2026-08-22);
+Phases 2-5 proposed. Written 2026-08-20 against commit `9e2e711`.
+**Start at §9 (Phase 1 retrospective) — it is where the next session picks up.**
 
 The spec (`curator-dna-spec.md`) is a behavioral taxonomy, not an architecture.
 This maps its 16 patterns onto CRATE's actual modules, in the order that most
@@ -264,3 +265,82 @@ Now that queue verdicts exist, the update rules are worth changing.
 - **No Discogs token dependency.** Unauthenticated works (§0). A token raises
   the rate limit and can be added later as optional.
 - **No claim that P15 is measurement.** It is the agent's ear, labeled as such.
+
+---
+
+## 9. Phase 1 retrospective — read this first
+
+Phases 0 and 1 shipped and ran end to end. Three dry-run digs on 2026-08-22,
+the last one published to Spotify (12 of 15 tracks resolved). What follows is
+what the live runs taught, because none of it was visible from the tests.
+
+### What the first real dig broke
+
+Every one of these was found by running the thing, not by reading it.
+
+| Failure | Cause | Fixed in |
+|---|---|---|
+| Dig died at SEQUENCE, losing 91 candidates and the whole traversal | An over-long response was cut off mid-generation; strict JSON parsing discarded everything | `agent.salvage_truncated_json`, and SEQUENCE now degrades to score order |
+| Canon anchor `ear — Coil` silently matched Maveth's *Coils Of The Black Earth* | `discogs.search_release` took `results[0]` with no confidence check | `discogs.artist_matches` |
+| First version of that fix rejected `Hailu Mergia` vs `Hailu Mergia & The Walias Band` | Whole-string similarity; artist-with-band billing is the *norm* in this corpus | leading-token containment |
+| Canon could take every traversal seed | Anchors pushed first into a 6-slot budget | `CANON_SEED_SHARE`, plus anchor rotation by dig count |
+| Score spread of 0.038 across a whole playlist | Three of four score terms inert: cross-source 0 for all, stretch 0.50 for 13/15, fit inside 0.75-0.85 | rank-based fit, `also_seen_in`, looser dedupe key |
+| Every track dated to its reissue (1970s material stamped 2025) | `year` was ambiguous in the prompt | `year` / `reissue_year` split |
+| Two labels supplied 9 of 15 tracks | Rotation guarantees a different source *set*, nothing about its shape | `MIN_SOURCE_TYPES`, `MAX_SOURCE_SHARE` |
+
+Measured before/after on the same registry: score spread 0.038 → 0.154,
+distinct fit values 4 → 10, distinct stretch values 2 → 8, cross-source tracks
+0 → 1, pre-1990 recordings 2 → 11, empty years 2 → 0.
+
+### What is working
+
+- **Lineage convictions (P13).** The clearest win. One dig placed Hallelujah
+  Chicken Run Band and Thomas Mapfumo's Acid Band as an explicit causal pair —
+  "the mine-compound band where Mapfumo first put mbira through a guitar amp",
+  then "effect, deliberately adjacent". That is the argument the spec asked for.
+- **Canon as a judging reference (P3).** A Loraine James track was judged with
+  "the same move as the Coil glitch, where the collapse is earned by everything
+  stacked before it" — an anchor added an hour earlier, used as the standard.
+- **Cross-source, once reachable.** The single corroborated track in the
+  published dig (Dur-Dur Band, vouched for by two independent archival labels)
+  scored highest by a clear margin.
+
+### Open items for Phase 2 and beyond
+
+1. **The feedback loop is still at zero sessions.** This is now the blocking
+   item for the whole plan, not a nice-to-have. Every source trust weight is
+   still its seeded value, `stretch_history` is empty, and Phase 4's entire
+   purpose is to rewire rules that currently have nothing to consume. The
+   2026-08-22 playlist is published and listenable; `crate feedback 2026-08-22`
+   is the highest-value next action in this repo.
+2. **The credits graph contributed nothing to any dig yet.** It builds correct,
+   attested edges — but the canon is indie/art-rock (Big Thief, Blood Orange,
+   4AD) while the digs run on global reissue labels, so the leads were for a
+   neighbourhood the digs never visited. No liner note has cited a Discogs path.
+   Either the canon grows to overlap what gets dug, or seeding becomes
+   source-aware (seed the traversal from the *picked sources'* material rather
+   than canon-first). Do not build more graph machinery until this is resolved —
+   it is currently cost without return.
+3. **Cross-source corroboration is thin** (1/15). Possibly structural: sources
+   that dig different territory genuinely rarely overlap. Watch it across
+   several digs before engineering further.
+4. **Fit compression persists at the prompt level** (range still 0.1 after the
+   prompt asked for the full range). Rank-based scoring makes this harmless
+   today. If it degrades to fewer than `MIN_DISTINCT_FIT_VALUES`, the dig warns.
+5. **The best track did not reach Spotify.** The highest-scoring, only
+   cross-corroborated track in the published dig was unresolvable
+   (`RESOLVE_CONFIDENCE_THRESHOLD` correctly rejected a 0.276 match). Obscure
+   global material is exactly what this tool is for and exactly what Spotify
+   lacks. Worth deciding whether the unresolved-gems report is a sufficient
+   answer or whether the pipeline should over-select to compensate.
+6. **Scene entities (P10)** remain deferred — see the note in §2.
+
+### Diagnostics added along the way
+
+- `~/.crate/cache/agent-failures/` — unparseable agent responses are written
+  here in full. The exception truncates at 1000 characters, which cannot
+  distinguish a cut-off response from a malformed one.
+- `crate dig` prints selection health after TRIANGULATE: how many tracks are
+  cross-sourced, the fit range, and warnings when fit or stretch is degenerate.
+- `crate graph stats`, `crate canon list`, `crate doctor` (registry schema and
+  graph size checks).

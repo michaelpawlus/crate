@@ -70,6 +70,10 @@ directly.
   because they come from judging the record itself. Registries written before
   the field get it backfilled in memory by `state.load_sources`;
   `crate sources migrate` writes it down so the prior is visible and editable.
+- `docs/curator-dna-plan.md` — **the active work thread.** Implementation plan
+  for `curator-dna-spec.md` (a behavioural taxonomy of elite curators).
+  Phases 0-1 are done and exercised live; §9 is the retrospective and the
+  open items, and is where to start.
 - `docs/curator-model.md` — the digger playbook the SOURCE agent executes.
 - `docs/source-access.md` — verified access methods per source (July 2026).
 
