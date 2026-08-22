@@ -142,8 +142,12 @@ def diversity_index(records: list[dict[str, Any]]) -> float:
     artists = {t["artist"].lower() for t in tracks}
     years = []
     for t in tracks:
+        # `year` is when the music was made; `reissue_year` is when a label put
+        # it out again. Era spread must read the former or a crate of 1970s
+        # reissues scores as a contemporary dig and the drift audit is measuring
+        # release schedules instead of range.
         try:
-            years.append(int(str(t.get("year", ""))[:4]))
+            years.append(int(str(t.get("year") or "")[:4]))
         except ValueError:
             pass
     era_spread = (max(years) - min(years)) / 60 if len(years) >= 2 else 0.3

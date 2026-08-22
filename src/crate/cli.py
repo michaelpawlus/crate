@@ -189,6 +189,25 @@ def dig(
         console.print("[bold]TRIANGULATE[/bold] — scoring…")
         selection = triangulate.run_triangulate_stage(candidates, run_spec, top_keys)
 
+        health = run_spec.get("rating_health") or {}
+        corroborated = run_spec.get("corroborated", 0)
+        console.print(
+            f"  {len(selection)} selected · {corroborated} cross-source "
+            f"· fit range {health.get('fit_range', 0)}"
+        )
+        if health.get("fit_degenerate"):
+            console.print(
+                "[yellow]⚠[/yellow] fit ratings were near-identical "
+                f"({health.get('distinct_fit')} distinct values) — ranking fell back "
+                "to source trust for most of the ordering."
+            )
+        if health.get("stretch_degenerate"):
+            console.print(
+                "[yellow]⚠[/yellow] stretch was "
+                f"{int(health.get('stretch_uniformity', 0) * 100)}% one value — the "
+                "stretch budget will learn nothing from this dig."
+            )
+
         console.print("[bold]SEQUENCE[/bold] — building the arc…")
         sequenced = sequence.run_sequence_stage(selection, run_spec)
 

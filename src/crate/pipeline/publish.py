@@ -22,6 +22,8 @@ def liner_notes(record: dict[str, Any]) -> str:
     for t in record["tracks"]:
         year = f" ({t['year']})" if t.get("year") else ""
         lines.append(f"## {t['position']}. {t['artist']} — {t['track']}{year}")
+        if t.get("reissue_year") and str(t["reissue_year"]) != str(t.get("year", "")):
+            lines.append(f"_reissued {t['reissue_year']}_")
         if t.get("album"):
             lines.append(f"*{t['album']}*")
         lines.append(f"- **Why it belongs:** {t.get('conviction', '')}")

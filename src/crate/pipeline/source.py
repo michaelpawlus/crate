@@ -44,14 +44,31 @@ def pick_sources(
             pool.remove(choice)
         return picked
 
+    available_types = len({str(s.get("type", "")) for s in sources if s.get("type")})
+    want_types = min(config.MIN_SOURCE_TYPES, available_types, k)
+
+    best = None
     for _ in range(20):  # retry until the set differs from last run
         picked = weighted_sample(cold, n_cold_required)
         rest = [s for s in sources if s not in picked]
         picked += weighted_sample(rest, k - len(picked))
         names = {s["name"] for s in picked}
-        if names != last_set or len(sources) <= k:
+        if names == last_set and len(sources) > k:
+            continue
+        # Rotation guarantees a different *set* but says nothing about its
+        # shape, so a draw can come back as five reissue labels — wide
+        # geographically, narrow structurally, because every source in it finds
+        # music the same way. Keep the best-spread draw seen rather than
+        # rejecting outright: a thin registry may not be able to do better.
+        if best is None or type_spread(picked) > type_spread(best):
+            best = picked
+        if type_spread(picked) >= want_types:
             return picked
-    return picked
+    return best if best is not None else picked
+
+
+def type_spread(picked: list[dict[str, Any]]) -> int:
+    return len({str(s.get("type", "")) for s in picked if s.get("type")})
 
 
 def gather_material(picked: list[dict[str, Any]]) -> dict[str, Any]:
@@ -147,6 +164,15 @@ def run_source_stage(
             continue
         if state.is_excluded(exclusions, c["artist"], c["track"]):
             continue
+        # Corroboration may only name sources that are actually in the registry,
+        # for the same reason `source` must: an unverifiable second voucher is
+        # worth less than none, and cross-source agreement is 25% of the score.
+        also = []
+        for extra in c.get("also_seen_in") or []:
+            name = str(extra.get("source", "") if isinstance(extra, dict) else extra).strip()
+            if name in all_names and name != src:
+                also.append(extra)
+        c["also_seen_in"] = also
         cleaned.append(c)
     if len(cleaned) < run_spec["length"]:
         raise RuntimeError(

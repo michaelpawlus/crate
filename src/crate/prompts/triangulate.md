@@ -26,8 +26,22 @@ For EVERY candidate, judge:
 
 - `fit` (0–1): how well it serves this brief and mood — energy, texture,
   moment. Not similarity to past taste; a stretch track can have high fit.
+
+  **Use the whole range and rank against each other.** These scores exist to
+  order this pool, and a pool rated 0.75–0.85 across the board carries no
+  ordering at all — it throws the judgement away. Some of these candidates are
+  better for tonight than others; say which. Expect roughly the weakest tenth
+  under 0.3 and only a genuine handful above 0.9. If two really are equal, give
+  them the same number — ties are fine, uniformity is not.
+
 - `stretch` (0–1): distance from the listener's current taste centroid.
   0 = squarely inside their world, 1 = a different planet.
+
+  This one is calibrated, not relative: 0.5 must mean the *same* distance every
+  time or the learned stretch budget is measuring nothing. Do not default to
+  0.5 — a pool where nearly everything is 0.5 means you have not judged
+  distance, and a genuinely safe pick (an artist already in their world) should
+  be down at 0.1–0.2 while a real leap sits at 0.8+.
 - `conviction`: ONE sentence on why this track belongs — the sentence you'd
   say handing them the record. If you cannot write a real one, return an
   empty string and the track is cut. No filler ("great track", "a classic").
@@ -49,4 +63,6 @@ Return JSON:
 ]}
 ```
 
-Include every id from the input exactly once.
+Include every id from the input exactly once. Keep each conviction to one
+sentence — a long pool of long strings is what makes a response run out of room
+before it is finished.

@@ -37,3 +37,7 @@ Return JSON:
 ```
 
 `order` must contain every input id exactly once, in playback order.
+
+Keep each rationale to one sentence. The whole response has to fit in one reply
+— if it is cut off mid-way the arc is lost and the playlist falls back to score
+order.

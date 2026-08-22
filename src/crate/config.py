@@ -140,6 +140,33 @@ GRAPH_CREATIVE_ROLES = (
     "mixed by",
 )
 
+# --- Selection shape ---
+
+# No single source may supply more than this share of a playlist. Source
+# rotation picks 4-7 sources but says nothing about how the slots divide, so a
+# run that happens to draw several reissue labels can come back geographically
+# wide and structurally narrow — nine of fifteen from two labels, which is one
+# label's taste wearing a playlist's clothes.
+MAX_SOURCE_SHARE = 0.34
+
+# Source rotation aims for at least this many distinct source *types* (radio,
+# reissue-label, publication, list-community, individual). Types are proxies for
+# how a source finds music; a set drawn entirely from one type asks the same
+# question five ways.
+MIN_SOURCE_TYPES = 3
+
+# TRIANGULATE's `fit` is an absolute 0-1 judgement in the prompt but is only
+# ever used to rank one dig's pool against itself, and agents compress absolute
+# ratings badly (an observed run: 15 tracks, four distinct fit values, all
+# between 0.75 and 0.85). Scoring therefore uses fit's rank within the batch.
+# Below this many distinct values, the ratings carry no ordering worth using and
+# the dig says so rather than pretending to rank.
+MIN_DISTINCT_FIT_VALUES = 3
+# A stretch column this uniform means the stretch budget is learning nothing —
+# reported, not corrected, because stretch is calibrated against
+# HIGH_STRETCH_THRESHOLD and rescaling it would break that meaning.
+DEGENERATE_RATING_SHARE = 0.8
+
 # --- Run defaults ---
 
 DEFAULT_LENGTH = 15
