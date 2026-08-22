@@ -12,7 +12,9 @@ in `DISCOGS_TOKEN`. Everything goes through `fetchers.cached_fetch`, so the
 throttle below only ever paces cache misses.
 """
 
+import difflib
 import os
+import re
 import time
 from typing import Any
 
@@ -27,6 +29,12 @@ USER_AGENT = "crate/0.1 +https://github.com/michaelpawlus/crate"
 # here costs the whole traversal.
 _MIN_INTERVAL = 3.0
 _last_call = 0.0
+
+# Fallback similarity for names that are neither equal nor one leading the
+# other — spelling variants, mostly. Deliberately strict: a wrong release does
+# not merely waste a seed, it writes wrong edges into a graph later digs reason
+# from.
+ARTIST_MATCH_THRESHOLD = 0.82
 
 
 class Budget:
@@ -78,12 +86,58 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     return fetchers.cached_fetch(key, _fetch)
 
 
+def _norm(s: str) -> str:
+    # Discogs disambiguates same-named artists with a trailing number:
+    # "Ear (11) - Rumspringa". Strip it, and everything else that is not a
+    # letter or digit, before comparing.
+    s = re.sub(r"\(\d+\)", " ", str(s).lower())
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
+
+def _artist_of(result_title: str) -> str:
+    """Discogs search results carry a combined `"Artist - Release"` title."""
+    head, sep, _ = str(result_title).partition(" - ")
+    return head if sep else str(result_title)
+
+
+def artist_matches(queried: str, result_title: str, threshold: float = ARTIST_MATCH_THRESHOLD) -> bool:
+    """Is the artist on this result the artist that was asked for?
+
+    Leading-token containment is the rule that matters, because billing an
+    artist with their band is the norm in this corpus: "Hailu Mergia" is the
+    right answer for "Hailu Mergia & The Walias Band", as are
+    "Mulatu Astatke & His Ethiopian Quintet" and "K. Frimpong & His Cubano
+    Fiestas". Requiring the shorter name to *lead* the longer one keeps that
+    while still refusing "ear" against "Earth, Wind & Fire" — which plain
+    substring matching would wave through.
+    """
+    a, b = _norm(queried).split(), _norm(_artist_of(result_title)).split()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+    if long_[: len(short)] == short:
+        return True
+    return difflib.SequenceMatcher(None, " ".join(a), " ".join(b)).ratio() >= threshold
+
+
 def search_release(
     artist: str, title: str = "", budget: Budget | None = None
 ) -> dict[str, Any] | None:
-    """Best release match for an artist/record. `title` may be a track name —
-    Discogs matches it against release titles, so a hit is a strong signal and
-    a miss is routine."""
+    """Best release match for an artist/record, or None.
+
+    The artist on the result has to actually be the artist asked for. Discogs
+    search is fuzzy and always answers with *something*: `("ear", "Coil")`
+    returns Maveth's "Coils Of The Black Earth" with no indication that it is
+    unrelated. Seeding the graph from that would attach death-metal personnel to
+    a canon anchor, which is the same failure RESOLVE already refuses — on a
+    low-confidence match, drop, never substitute.
+
+    `title` may be a track name. Discogs matches those against *release* titles,
+    so a track usually resolves to its album and sometimes not at all; a miss
+    here is routine and costs the traversal one seed.
+    """
     if budget is not None and not budget.take():
         return None
     query = " ".join(x for x in (artist, title) if x).strip()
@@ -91,7 +145,10 @@ def search_release(
         return None
     data = _get("/database/search", {"q": query, "type": "release", "per_page": 5})
     results = (data or {}).get("results") or []
-    return results[0] if results else None
+    for result in results:
+        if artist_matches(artist, result.get("title", "")):
+            return result
+    return None
 
 
 def release(release_id: int | str, budget: Budget | None = None) -> dict[str, Any] | None:

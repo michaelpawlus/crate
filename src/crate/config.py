@@ -107,6 +107,11 @@ def incentive_factor(source: dict) -> float:
 
 # How many records a single dig seeds the traversal from, and how far it walks.
 GRAPH_SEEDS_PER_RUN = 6
+# Ceiling on the share of those seeds the canon may take. Without it a canon of
+# any real size eats every slot, the traversal re-walks the same stable records
+# every night, and the graph stops growing from what the sources actually played
+# — which is the half of the seed mix that is supposed to be live.
+CANON_SEED_SHARE = 0.5
 GRAPH_MAX_HOPS = 2
 # Hard ceiling on Discogs calls per dig. Unauthenticated Discogs allows 25
 # req/min; cached_fetch absorbs repeats, but a cold dig must still not stall.

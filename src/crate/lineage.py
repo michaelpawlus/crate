@@ -21,8 +21,15 @@ def seed_records(material: dict[str, Any], limit: int) -> list[dict[str, str]]:
     on internalised references), then what this run's trusted sources actually
     played, then previously loved tracks.
 
-    Canon leads because it is the stable part of the listener's world; the
-    fetched material is what is live tonight.
+    Canon leads because it is the stable part of the listener's world, but it is
+    capped at `CANON_SEED_SHARE` of the slots. Uncapped, a canon of any real size
+    takes every seed, the same stable records get re-walked every night, and the
+    graph stops growing from what the sources actually played — the half of the
+    mix that is supposed to be live.
+
+    Which anchors get used rotates by dig count rather than always taking the
+    first few, so a large canon is traversed over several nights instead of only
+    ever its head. Deterministic on purpose: same dig, same seeds.
     """
     out: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
@@ -37,8 +44,13 @@ def seed_records(material: dict[str, Any], limit: int) -> list[dict[str, str]]:
         seen.add(key)
         out.append({"artist": artist, "track": track, "origin": origin})
 
-    for entry in canon.anchors():
-        push(entry["artist"], entry["track"], f"canon:{entry['lineage']}")
+    all_anchors = canon.anchors()
+    if all_anchors:
+        n_canon = max(1, int(limit * config.CANON_SEED_SHARE))
+        offset = state.load_signals().get("playlists_generated", 0) * n_canon
+        for i in range(min(n_canon, len(all_anchors))):
+            entry = all_anchors[(offset + i) % len(all_anchors)]
+            push(entry["artist"], entry["track"], f"canon:{entry['lineage']}")
 
     for source_name, gathered in (material or {}).items():
         for artist, track in _tracks_in(gathered):

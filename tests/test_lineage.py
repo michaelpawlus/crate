@@ -127,6 +127,49 @@ def test_canon_anchors_seed_the_traversal_first():
     assert seeds[0]["origin"] == "canon:Ethio-jazz"
 
 
+def test_canon_cannot_take_every_seed_slot():
+    """A big canon must not starve tonight's material — the live half of the
+    seed mix is the half that makes the graph grow."""
+    for i in range(20):
+        canon.add_anchor("Big", f"Artist {i}", "t")
+    material = {"WFMU": {"material": [{"artist": "Tonight", "title": "x"}]}}
+    seeds = lineage.seed_records(material, limit=6)
+    origins = [s["origin"] for s in seeds]
+    assert sum(o.startswith("canon:") for o in origins) <= 3
+    assert "WFMU" in origins
+
+
+def test_canon_seeds_rotate_across_digs():
+    """A large canon should be traversed over several nights, not just its head."""
+    for i in range(20):
+        canon.add_anchor("Big", f"Artist {i}", "t")
+
+    def canon_seeds():
+        return {
+            s["artist"] for s in lineage.seed_records({}, limit=6)
+            if s["origin"].startswith("canon:")
+        }
+
+    first = canon_seeds()
+    signals = state.load_signals()
+    signals["playlists_generated"] = 1
+    state.save_signals(signals)
+    assert canon_seeds() != first
+
+
+def test_canon_seeding_is_deterministic_within_one_dig():
+    for i in range(20):
+        canon.add_anchor("Big", f"Artist {i}", "t")
+    assert lineage.seed_records({}, limit=6) == lineage.seed_records({}, limit=6)
+
+
+def test_a_single_anchor_still_seeds():
+    """The share is a ceiling, not a quota — one anchor must not round to zero."""
+    canon.add_anchor("Ethio-jazz", "Mulatu Astatke", "Yekermo Sew")
+    seeds = lineage.seed_records({}, limit=2)
+    assert seeds[0]["artist"] == "Mulatu Astatke"
+
+
 def test_seed_records_finds_tracks_in_nested_fetcher_shapes():
     """Each fetcher returns a different shape; the walker must not assume one."""
     material = {
@@ -213,3 +256,70 @@ def test_graph_max_hops_is_a_constant_not_state():
     """The traversal depth is a guardrail — the learning loop must not tune it."""
     assert isinstance(config.GRAPH_MAX_HOPS, int)
     assert "GRAPH_MAX_HOPS" not in state.DEFAULT_SIGNALS
+
+
+# --- match confidence: drop, never substitute ---
+
+def test_artist_match_accepts_the_real_thing():
+    assert discogs.artist_matches("ear", "Ear (11) - Rumspringa")
+    assert discogs.artist_matches("Alice Coltrane", "Alice Coltrane - Journey In Satchidananda")
+    assert discogs.artist_matches("Mulatu Astatke", "Mulatu Astatke - Mulatu Plays Mulatu")
+    # Diacritics and punctuation differences are not a mismatch.
+    assert discogs.artist_matches("Antonio Pinana Hijo", "Antonio Piñana Hijo - Some Record")
+
+
+def test_artist_match_accepts_an_artist_billed_with_their_band():
+    """The norm in this corpus. A strict whole-string ratio rejects all of
+    these, which silently shrinks the graph to anglophone solo credits."""
+    assert discogs.artist_matches("Hailu Mergia", "Hailu Mergia & The Walias Band* - Tezeta")
+    assert discogs.artist_matches("Mulatu Astatke", "Mulatu Astatke & His Ethiopian Quintet - Afro-Latin Soul")
+    assert discogs.artist_matches("K. Frimpong", "K. Frimpong & His Cubano Fiestas - Hwehwe Mu Na Yi Wo Mpena")
+    # And the reverse billing, where the query is the longer name.
+    assert discogs.artist_matches("Ebo Taylor & The Pelikans", "Ebo Taylor - Life Stories")
+
+
+def test_artist_match_still_refuses_a_shared_prefix_that_is_a_different_artist():
+    """Leading-token containment, not substring — otherwise "ear" swallows
+    "Earth, Wind & Fire"."""
+    assert not discogs.artist_matches("ear", "Earth, Wind & Fire - That's the Way of the World")
+    assert not discogs.artist_matches("Sun Ra", "Sunny Day Real Estate - Diary")
+
+
+def test_artist_match_rejects_a_fuzzy_hit_on_a_different_artist():
+    """The live failure this was written for: searching ("ear", "Coil") returns
+    Maveth's "Coils Of The Black Earth" with no sign it is unrelated."""
+    assert not discogs.artist_matches("ear", "Maveth - Coils Of The Black Earth")
+    assert not discogs.artist_matches("Big Thief", "Coil - Windowpane")
+    assert not discogs.artist_matches("Sault", "Sonic Youth - Daydream Nation")
+
+
+def test_artist_match_rejects_empty_input():
+    assert not discogs.artist_matches("", "Coil - Windowpane")
+    assert not discogs.artist_matches("ear", "")
+
+
+def test_search_release_drops_rather_than_substituting(monkeypatch):
+    monkeypatch.setattr(
+        discogs, "_get",
+        lambda *a, **kw: {"results": [{"id": 1, "title": "Maveth - Coils Of The Black Earth"}]},
+    )
+    assert discogs.search_release("ear", "Coil") is None
+
+
+def test_search_release_skips_past_a_bad_first_result(monkeypatch):
+    """Discogs orders by its own relevance, which is not ours."""
+    monkeypatch.setattr(
+        discogs, "_get",
+        lambda *a, **kw: {"results": [
+            {"id": 1, "title": "Maveth - Coils Of The Black Earth"},
+            {"id": 2, "title": "Ear (11) - Rumspringa"},
+        ]},
+    )
+    assert discogs.search_release("ear", "Coil")["id"] == 2
+
+
+def test_a_dropped_match_costs_a_seed_not_the_traversal(monkeypatch):
+    monkeypatch.setattr(discogs, "search_release", lambda *a, **kw: None)
+    summary = lineage.build_from_records([{"artist": "ear", "track": "Coil", "origin": "canon"}])
+    assert summary["records_resolved"] == 0
+    assert summary["edges_added"] == 0
