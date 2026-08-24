@@ -15,3 +15,6 @@ wheels/
 
 # macOS
 .DS_Store
+
+# prune (dead-code tooling) — local config, not shared
+.prune/
