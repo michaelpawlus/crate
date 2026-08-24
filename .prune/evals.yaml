@@ -1,0 +1,33 @@
+# Golden tasks for prune. At least 3 are required before any deletion loop runs.
+#
+# Write tasks that exercise the parts of this project an agent actually has to
+# understand. If a deletion breaks the codebase in a way no task notices, prune
+# will happily land it — the evals are the safety net.
+version: 1
+
+defaults:
+  runs_per_condition: 3        # nondeterminism budget
+  max_turns: 25
+  allowed_tools: "Read,Grep,Glob,Bash(uv run:*),Edit"
+
+tasks:
+  - id: tests-pass
+    prompt: "Run the test suite and report whether it passes."
+    assertions:
+      - type: command_succeeds
+        cmd: "uv run pytest -q"
+
+  - id: TODO-explain-architecture
+    prompt: "Explain how <core subsystem> works, end to end."
+    assertions:
+      - type: output_contains
+        pattern: "TODO-a-term-only-a-correct-answer-would-use"
+
+  - id: TODO-extend-a-pattern
+    prompt: "Add a new <thing> called 'probe', following the existing patterns."
+    assertions:
+      - type: file_contains
+        path: "src/TODO/module.py"
+        pattern: "probe"
+      - type: command_succeeds
+        cmd: "uv run pytest -q"

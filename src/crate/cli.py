@@ -193,8 +193,16 @@ def dig(
         corroborated = run_spec.get("corroborated", 0)
         console.print(
             f"  {len(selection)} selected · {corroborated} cross-source "
+            f"· {run_spec.get('recent_selected', 0)}/{run_spec.get('recent_target', 0)} recent "
             f"· fit range {health.get('fit_range', 0)}"
         )
+        if run_spec.get("recent_selected", 0) < run_spec.get("recent_target", 0):
+            console.print(
+                "[yellow]⚠[/yellow] the recency floor could not be filled — only "
+                f"{run_spec.get('recent_available', 0)} candidate(s) recorded in the last "
+                f"{config.RECENT_WITHIN_YEARS} years reached TRIANGULATE. The dig is "
+                "archival because the pool was, not because selection chose it."
+            )
         if health.get("fit_degenerate"):
             console.print(
                 "[yellow]⚠[/yellow] fit ratings were near-identical "

@@ -87,6 +87,14 @@ Rules:
   worse than none.
 - Include a handful of candidates that stretch beyond the taste profile —
   grounded stretches, not randomness.
+- **At least {{recent_target}} candidates must be music made in the last
+  {{recent_within_years}} years** — judged on `year`, not `reissue_year`.
+  Selection reserves slots for these, and it cannot reserve what you do not
+  return: hand back nothing recent and the playlist is archival by default.
+  Find them the way you find everything else — a label's new signing, a radio
+  host's first play, a publication vouching for a current record — never a
+  chart and never recency for its own sake. A new track that does not fit the
+  argument is worse than none.
 - Real tracks only. If you are not confident a recording exists, leave it out.
 - **`year` is when the music was made, not when a label put it out again.** A
   1977 Zimbabwean single on a 2025 Analog Africa compilation is `"year": "1977",
