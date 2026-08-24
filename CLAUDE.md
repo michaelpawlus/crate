@@ -72,8 +72,11 @@ directly.
   `crate sources migrate` writes it down so the prior is visible and editable.
 - `docs/curator-dna-plan.md` — **the active work thread.** Implementation plan
   for `curator-dna-spec.md` (a behavioural taxonomy of elite curators).
-  Phases 0-1 are done and exercised live; §9 is the retrospective and the
-  open items, and is where to start.
+  Phases 0-1 are done and exercised live, the feedback loop has closed once,
+  and the recency floor is in. **§10 is the current state and where to start**;
+  §9 is the earlier retrospective, kept because its open items are still
+  numbered and referenced. Phase 2 is blocked on the graph-seeding choice in
+  §10.
 - `docs/curator-model.md` — the digger playbook the SOURCE agent executes.
 - `docs/source-access.md` — verified access methods per source (July 2026).
 

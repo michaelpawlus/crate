@@ -180,6 +180,13 @@ own objectives rather than a single prompt call.
   from Phase 1.
 - **Non-obvious connection** (P14). The thesis must name one connection the
   listener could not have predicted, and it must be traceable to a graph edge.
+  **Blocked on §10 until the graph can reach tonight's material.** As of dig #4
+  the traversal seeds only from the canon and previously-loved tracks, so a
+  requirement that the thesis cite a graph edge would either fail every dig
+  whose sources the graph never saw, or push the agent to invent a path — which
+  is the one thing P11 exists to prevent. Fix the seeding first; the
+  requirement is correct and cheap once the leads land in the right
+  neighbourhood.
 
 ---
 
@@ -268,7 +275,7 @@ Now that queue verdicts exist, the update rules are worth changing.
 
 ---
 
-## 9. Phase 1 retrospective — read this first
+## 9. Phase 1 retrospective (digs #1-3)
 
 Phases 0 and 1 shipped and ran end to end. Three dry-run digs on 2026-08-22,
 the last one published to Spotify (12 of 15 tracks resolved). What follows is
@@ -321,6 +328,10 @@ distinct fit values 4 → 10, distinct stretch values 2 → 8, cross-source trac
    source-aware (seed the traversal from the *picked sources'* material rather
    than canon-first). Do not build more graph machinery until this is resolved —
    it is currently cost without return.
+
+   **Resolved by dig #4, and it was the second option — see §10.** The canon was
+   grown to overlap; the graph still cited nothing. Growing the canon was not
+   the constraint.
 3. **Cross-source corroboration is thin** (1/15). Possibly structural: sources
    that dig different territory genuinely rarely overlap. Watch it across
    several digs before engineering further.
@@ -344,3 +355,111 @@ distinct fit values 4 → 10, distinct stretch values 2 → 8, cross-source trac
   cross-sourced, the fit range, and warnings when fit or stretch is degenerate.
 - `crate graph stats`, `crate canon list`, `crate doctor` (registry schema and
   graph size checks).
+
+---
+
+## 10. Feedback session #1 and dig #4 — read this first
+
+The loop closed for the first time on 2026-08-24: one feedback session applied,
+four repairs made, one dig run against them. Everything below rests on a single
+12-track session, so treat it as a hypothesis with evidence rather than a
+finding — the next session hardens or kills it.
+
+### Two update rules had never once been able to move
+
+Both ran every session. Neither could change anything, and the dig health output
+did not say so because it was reporting on the ratings, not on the rules.
+
+| Rule | Why it was inert | Fix |
+|---|---|---|
+| Stretch calibration | Gated on an absolute `HIGH_STRETCH_THRESHOLD` of 0.6, but across 26 judged tracks the agent never proposed a stretch above 0.55. The high bucket was always empty, so `stretch_budget` was pinned at its initial 0.5 permanently | `learning.high_stretch_cut()` reads the cut off the observed distribution; the constant stays as a ceiling |
+| Source trust | Summed a delta per track, so four loves moved a source +0.32 in one sitting. Both productive sources hit `SOURCE_WEIGHT_CEIL` and a source scoring 0.90 became indistinguishable from one scoring 0.74 | Pool per source per session: mean delta scaled by a confidence factor saturating with sample size. The ceiling is a guardrail and stays put |
+
+This is the same pathology `config.py` already documents for `fit` — agents
+compress absolute 0-1 ratings — arriving somewhere nobody had checked for it.
+**The general lesson: any rule keyed to an absolute threshold on an
+agent-assigned rating needs its cut derived from the observed distribution, or
+it is a rule that cannot fire.** `DEGENERATE_RATING_SHARE` and
+`MIN_DISTINCT_FIT_VALUES` are worth re-reading with that in mind.
+
+Neither was caught by the tests, because the tests fed synthetic stretches of
+0.8 and 0.9 — values real digs never produce. They validated the mechanism
+against data that does not occur.
+
+`state.load_signals()` compounded it: `dict(DEFAULT_SIGNALS)` is a shallow copy,
+so every caller shared one `stretch_history` list and one test's history leaked
+into the next. A suite that leaks state is how a dead calibrator survives three
+digs.
+
+### Recency had to become structural
+
+The listener's standing request after session #1 was contemporary music, against
+digs answering it with 2 of 26 tracks recorded this century. Recency existed only
+as prompt instruction (`curator-model.md` asks for "2-4 recent tracks") and
+nothing checked it — the same shape as the source-concentration failure
+`MAX_SOURCE_SHARE` had to make structural.
+
+`MIN_RECENT_SHARE` (0.20) now reserves slots in `triangulate.select`, read from
+`year` and never `reissue_year`. Dig #4 returned **6 recent of a target 3**, from
+a source set that was three-quarters archival: three took reserved slots, three
+won general slots on score. Worth noting the reserve was not the whole story —
+recent material was competitive on merit once the agent was asked for it.
+
+**Watch:** the recency reserve may breach `MAX_SOURCE_SHARE`, deliberately and
+by the same argument the exploration floor uses — a floor a cap can eat is not a
+floor. On its first live run Strut took 6 of 15 (40%) against a 30% cap. Two
+floors can now breach one cap. If that keeps producing 40% shares, the
+interaction needs re-arguing rather than tolerating.
+
+### What dig #4 confirmed
+
+- **The budget rise pulled the generator up.** `stretch_budget` 0.5 → 0.55, and
+  the agent used 0.60 twice — the first values above 0.55 in four digs. The
+  calibrator is now in a feedback relationship with the thing it calibrates.
+- **The canon judges out loud.** Liner notes cite it by name: "the communal
+  maximalism your canon rests on, at the source", "exactly the Coil move".
+- **Cross-source is not structurally thin** (§9 item 3). 4 corroborated in the
+  pool against 1 last dig; it tracks the source draw, not a hard limit.
+- **Fit compression is a property of the draw, not the prompt** (§9 item 4).
+  Pool-wide fit range 0.7 against 0.1. Selected tracks still sit in a 0.12 band,
+  which is what a top-N cut of a ranked pool looks like and is not a problem.
+
+### The graph finding — this is the one that changes Phase 2
+
+Growing the canon toward what actually gets dug **did not** make the graph
+contribute. Three new lineages were added from the listener's own loves, the
+rotation seeded all three, the traversal ran correctly and added 32 attested
+nodes: Girma Beyene off Hailu Mergia, André and Pierre Lewis off the Lewis
+Connection, Norman Whiteside off Wee, Novelli and Thais Do Amaral off Castro
+Neves. Exactly the artist's-artist figures `taste.md` asks for.
+
+Not one of them could have reached the playlist, and no liner note cited a
+Discogs path.
+
+**The constraint is ordering, not overlap.** `lineage.seed_records` fills its
+budget from canon, then tonight's *deterministic* material, then loved tracks.
+Dig #4 drew Strut, Awesome Tapes, Passion of the Weiss and Now-Again — three of
+them `access: web`, meaning the agent researches them and there is no
+deterministic material at graph-pass time. So the material slots fell through to
+loved tracks and the graph seeded entirely from stored state. Its leads pointed
+at Ethiopian, Columbus, Minneapolis and Brazilian material while the dig went to
+Funkadelic, Sun Ra and rap.
+
+The graph pass runs *before* the agent digs, so it can only ever see the subset
+of the registry that has a deterministic fetcher. Most reissue labels do not.
+
+Options, in the order they should be considered:
+
+1. **Second graph pass, after SOURCE.** Walk out from the candidate pool the
+   agent actually returned and hand the leads back for one enrichment round.
+   Costs a second Discogs budget and one more agent turn, but it is the only
+   option where the leads are guaranteed to be about tonight's dig.
+2. **Seed from the picked sources' catalogues** rather than their fetched
+   material — a label's roster is knowable without fetching a feed.
+3. **Accept canon-only seeding** and drop P14's graph-edge requirement to
+   "traceable to an attested credit", which the agent can satisfy from Discogs
+   lookups without a traversal.
+
+Do not start P14 or P16 until one of these is chosen: both are written against
+graph edges the traversal currently cannot produce for the material being
+sequenced.
