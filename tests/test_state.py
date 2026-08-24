@@ -50,3 +50,14 @@ def test_feedback_jsonl_roundtrip():
     state.append_feedback("2026-07-08", recs)
     state.append_feedback("2026-07-08", recs)
     assert len(state.load_all_feedback()) == 2
+
+
+def test_load_signals_does_not_share_mutable_defaults():
+    """A shallow copy of DEFAULT_SIGNALS handed every caller the same
+    stretch_history list, so one session's history leaked into the next."""
+    first = state.load_signals()
+    first["stretch_history"].append({"stretch": 0.9, "value": 1.0})
+    first["mood_priors"]["monday"] = 1.0
+    second = state.load_signals()
+    assert second["stretch_history"] == []
+    assert second["mood_priors"] == {}
