@@ -10,6 +10,7 @@ source: the registry source that started the chain stays the source, and the
 traversal path is recorded in `why` (P11)."""
 
 import json
+import math
 import random
 from typing import Any
 
@@ -120,6 +121,10 @@ def run_source_stage(
         taste=run_spec["taste"] or "(no taste profile yet — assume an open, curious listener)",
         length=str(run_spec["length"]),
         stretch_budget=str(run_spec["stretch_budget"]),
+        # Ask for more recent material than the floor reserves: selection can
+        # only pick from what comes back, and some of it will not resolve.
+        recent_target=str(math.ceil(run_spec["length"] * config.MIN_RECENT_SHARE) * 2),
+        recent_within_years=str(config.RECENT_WITHIN_YEARS),
         pool_min=str(config.CANDIDATE_POOL_MIN),
         pool_max=str(config.CANDIDATE_POOL_MAX),
         sources_json=json.dumps(

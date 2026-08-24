@@ -193,8 +193,16 @@ def dig(
         corroborated = run_spec.get("corroborated", 0)
         console.print(
             f"  {len(selection)} selected · {corroborated} cross-source "
+            f"· {run_spec.get('recent_selected', 0)}/{run_spec.get('recent_target', 0)} recent "
             f"· fit range {health.get('fit_range', 0)}"
         )
+        if run_spec.get("recent_selected", 0) < run_spec.get("recent_target", 0):
+            console.print(
+                "[yellow]⚠[/yellow] the recency floor could not be filled — only "
+                f"{run_spec.get('recent_available', 0)} candidate(s) recorded in the last "
+                f"{config.RECENT_WITHIN_YEARS} years reached TRIANGULATE. The dig is "
+                "archival because the pool was, not because selection chose it."
+            )
         if health.get("fit_degenerate"):
             console.print(
                 "[yellow]⚠[/yellow] fit ratings were near-identical "
@@ -301,6 +309,13 @@ def feedback(
         state.load_playlist_record(playlist) if playlist else state.latest_playlist_record()
     )
     if not record:
+        # Two different not-found cases. Saying "no playlists in history yet"
+        # for a mistyped stamp sends you off to re-dig a playlist you already
+        # have, so name the stamp and list what is actually there.
+        if playlist:
+            known = [p.name.removesuffix("-playlist.json") for p in state.list_playlist_records()]
+            hint = f" — known stamps: {', '.join(known)}" if known else " — history is empty; run `crate dig` first"
+            _fail(f"no playlist with stamp {playlist!r}{hint}", code=2, as_json=as_json)
         _fail("no playlists in history yet — run `crate dig` first", code=2, as_json=as_json)
 
     if quick:

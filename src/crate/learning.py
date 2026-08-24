@@ -3,13 +3,17 @@ taste narrative from feedback — inside guardrails that keep CRATE from
 collapsing into a similarity engine.
 
 Update rules:
-- Source trust: additive deltas per verdict, floor 0.1, plus a decay term
-  pulling weights 3% toward neutral (0.5) each session so old feedback fades.
+- Source trust: one pooled delta per source per session — the session's mean
+  verdict delta, scaled by a confidence factor that saturates with sample size
+  — plus a decay term pulling weights 3% toward neutral (0.5) each session so
+  old feedback fades. Floor 0.1, ceiling 1.0.
 - High-stretch skips get ~1/3 the negative weight of low-stretch skips: a
   missed surprise on the wrong day is weak evidence (§5.4.2).
 - Stretch budget: moves with the trailing success rate of high-stretch tracks,
   clamped to [EXPLORATION_FLOOR, 1.0]. The exploration floor itself is a
   constant in config.py — the loop cannot touch it.
+- What counts as "high stretch" is read off the observed distribution rather
+  than an absolute cut; see high_stretch_cut().
 """
 
 import difflib
@@ -24,6 +28,40 @@ DECAY_TOWARD_NEUTRAL = 0.03
 STRETCH_STEP = 0.05
 STRETCH_WINDOW = 20
 
+# Below this many judged tracks the observed stretch distribution is too thin
+# to read a cut off, and high_stretch_cut() falls back to the absolute constant.
+MIN_STRETCH_SAMPLES = 6
+
+# Track count at which one session's trust delta carries half its full weight.
+# Ten tracks from a source is better evidence than one, but not ten times
+# better; this is the saturation knee.
+SESSION_HALF_WEIGHT = 3
+
+
+def high_stretch_cut(history: list[dict[str, Any]]) -> float:
+    """The stretch value at or above which a track counts as a real reach.
+
+    config.HIGH_STRETCH_THRESHOLD is an absolute 0-1 cut, but `stretch` is an
+    agent-assigned absolute rating, and agents compress those badly — the same
+    pathology config.py documents for `fit`. Across the first 26 judged tracks
+    the agent never once proposed a stretch above 0.55, so an absolute 0.6 cut
+    matched nothing: `high` was always empty, `len(high) >= 4` was never true,
+    and the budget could not move in either direction. The calibrator looked
+    like it was running and was in fact inert.
+
+    So read the cut off the observed distribution — the upper tercile — instead
+    of asserting one. The constant stays as a ceiling rather than a target:
+    0.6 is a reach by anyone's reckoning, so a dig that does use the full range
+    never gets rescaled down to look timid.
+    """
+    values = [float(h["stretch"]) for h in history]
+    if len(values) < MIN_STRETCH_SAMPLES or len(set(values)) < 2:
+        # No spread is not evidence that everything is a stretch. Falling back
+        # keeps a degenerate distribution from marking every track "high" and
+        # turning the stretch calibrator into an overall-satisfaction meter.
+        return config.HIGH_STRETCH_THRESHOLD
+    return min(config.HIGH_STRETCH_THRESHOLD, round(statistics.quantiles(values, n=3)[1], 3))
+
 
 def apply_feedback(feedback: list[dict[str, Any]]) -> dict[str, Any]:
     """Apply one session's feedback to sources.yaml, taste-signals.json, and
@@ -36,32 +74,9 @@ def apply_feedback(feedback: list[dict[str, Any]]) -> dict[str, Any]:
 
     track_records = [r for r in feedback if r.get("track_pos") is not None]
 
-    # --- Source trust updates ---
-    for src in sources:
-        old = src.get("trust", 0.5)
-        src["trust"] = old + (0.5 - old) * DECAY_TOWARD_NEUTRAL
-
-    for rec in track_records:
-        verdict = rec.get("verdict", "fine")
-        delta = VERDICT_DELTAS.get(verdict, 0.0)
-        stretch = float(rec.get("stretch_score", 0.5) or 0.5)
-        if verdict == "skip" and stretch >= config.HIGH_STRETCH_THRESHOLD:
-            delta *= config.HIGH_STRETCH_SKIP_DISCOUNT
-        for name in [s.strip() for s in str(rec.get("source", "")).split(",") if s.strip()]:
-            src = by_name.get(name)
-            if not src:
-                continue
-            src["trust"] = min(
-                config.SOURCE_WEIGHT_CEIL,
-                max(config.SOURCE_WEIGHT_FLOOR, src.get("trust", 0.5) + delta),
-            )
-            src["feedback_count"] = src.get("feedback_count", 0) + 1
-
-    for src in sources:
-        src["trust"] = round(src["trust"], 3)
-    changes["source_weights"] = {s["name"]: s["trust"] for s in sources}
-
-    # --- Stretch calibration ---
+    # Record this session's stretches before anything reads them, so the trust
+    # discount and the budget calibration are judged against the same cut —
+    # including the dig currently under review.
     for rec in track_records:
         signals.setdefault("stretch_history", []).append(
             {
@@ -70,10 +85,54 @@ def apply_feedback(feedback: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
     signals["stretch_history"] = signals["stretch_history"][-STRETCH_WINDOW * 3 :]
+    cut = high_stretch_cut(signals["stretch_history"])
+    changes["high_stretch_cut"] = cut
+
+    # --- Source trust updates ---
+    for src in sources:
+        old = src.get("trust", 0.5)
+        src["trust"] = old + (0.5 - old) * DECAY_TOWARD_NEUTRAL
+
+    # Deltas are pooled per source and applied once, not summed per track.
+    # Summing let a single session move a source by its delta times its track
+    # count — four loves was +0.32 — which pinned both of the first session's
+    # productive sources to SOURCE_WEIGHT_CEIL and left a source scoring 0.90
+    # indistinguishable from one scoring 0.74. The ceiling is an anti-convergence
+    # guardrail and not the loop's to move (see config.py), so the update is
+    # what gets fixed: a session contributes its mean delta, scaled by a
+    # confidence factor that saturates with sample size.
+    pooled: dict[str, list[float]] = {}
+    for rec in track_records:
+        verdict = rec.get("verdict", "fine")
+        delta = VERDICT_DELTAS.get(verdict, 0.0)
+        stretch = float(rec.get("stretch_score", 0.5) or 0.5)
+        if verdict == "skip" and stretch >= cut:
+            delta *= config.HIGH_STRETCH_SKIP_DISCOUNT
+        for name in [s.strip() for s in str(rec.get("source", "")).split(",") if s.strip()]:
+            if name in by_name:
+                pooled.setdefault(name, []).append(delta)
+
+    for name, deltas in pooled.items():
+        src = by_name[name]
+        confidence = len(deltas) / (len(deltas) + SESSION_HALF_WEIGHT)
+        src["trust"] = min(
+            config.SOURCE_WEIGHT_CEIL,
+            max(
+                config.SOURCE_WEIGHT_FLOOR,
+                src.get("trust", 0.5) + statistics.mean(deltas) * confidence,
+            ),
+        )
+        src["feedback_count"] = src.get("feedback_count", 0) + len(deltas)
+
+    for src in sources:
+        src["trust"] = round(src["trust"], 3)
+    changes["source_weights"] = {s["name"]: s["trust"] for s in sources}
+
+    # --- Stretch calibration ---
     high = [
         h["value"]
         for h in signals["stretch_history"][-STRETCH_WINDOW:]
-        if h["stretch"] >= config.HIGH_STRETCH_THRESHOLD
+        if h["stretch"] >= cut
     ]
     old_budget = signals["stretch_budget"]
     if len(high) >= 4:

@@ -161,6 +161,26 @@ MAX_SOURCE_SHARE = 0.30
 # question five ways.
 MIN_SOURCE_TYPES = 3
 
+# Feedback session #1 ended with a standing request for contemporary music —
+# "there is new music being made that I also want to know about" — against digs
+# that had answered it with 2 of 26 tracks recorded this century. Recency
+# existed only as prompt instruction (curator-model.md asks for "2-4 recent
+# tracks") and nothing checked it, which is the same shape as the
+# source-concentration problem MAX_SOURCE_SHARE had to make structural: a rule
+# the model may quietly ignore is not a rule. So it becomes a floor in
+# selection.
+#
+# A share rather than a count, so it holds at any --length: 0.20 gives 3 slots
+# of a 15-track playlist. Like the exploration floor it is filled before the
+# general slots and may breach MAX_SOURCE_SHARE — a floor a cap can eat is not
+# a floor.
+MIN_RECENT_SHARE = 0.20
+
+# How recently the music had to be *made* to count. Read from `year`, never
+# `reissue_year`: a crate of 1970s reissues is not a contemporary dig, and the
+# drift audit already had to learn that distinction the hard way (learning.py).
+RECENT_WITHIN_YEARS = 3
+
 # TRIANGULATE's `fit` is an absolute 0-1 judgement in the prompt but is only
 # ever used to rank one dig's pool against itself, and agents compress absolute
 # ratings badly (an observed run: 15 tracks, four distinct fit values, all

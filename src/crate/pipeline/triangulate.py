@@ -144,6 +144,21 @@ def rating_health(judged: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def recording_year(c: dict[str, Any]) -> int | None:
+    """When the music was *made*. `year` may be a decade ("1970s") or empty;
+    `reissue_year` is deliberately not consulted — a 2025 reissue of a 1977
+    record is 1977 for every purpose CRATE has."""
+    try:
+        return int(str(c.get("year") or "")[:4])
+    except ValueError:
+        return None
+
+
+def is_recent(c: dict[str, Any], this_year: int) -> bool:
+    year = recording_year(c)
+    return year is not None and year >= this_year - config.RECENT_WITHIN_YEARS
+
+
 def fit_ranks(judged: list[dict[str, Any]]) -> dict[int, float]:
     """Map each candidate's index to its fit percentile within this pool.
 
@@ -218,14 +233,20 @@ def select(
     top_track_keys: set[str] | None = None,
     incentive_by_source: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
-    """Top-N by score, with >= EXPLORATION_FLOOR of slots reserved for tracks
-    whose provenance includes a source with no feedback history, and no single
-    source allowed past MAX_SOURCE_SHARE of the playlist.
+    """Top-N by score, with two floors and one cap: >= EXPLORATION_FLOOR of
+    slots reserved for tracks whose provenance includes a source with no
+    feedback history, >= MIN_RECENT_SHARE for music actually made in the last
+    RECENT_WITHIN_YEARS years, and no single source past MAX_SOURCE_SHARE.
 
-    The cap is applied to the general slots only. The exploration reserve is a
-    floor that exists to defeat exactly this kind of tidying, so it is filled
-    first and is allowed to breach the cap; anything else would let one
-    guardrail quietly eat the other.
+    The cap is applied to the general slots only. Both reserves are floors that
+    exist to defeat exactly this kind of tidying, so they are filled first and
+    are allowed to breach the cap; anything else would let one guardrail quietly
+    eat the other.
+
+    Neither floor can conjure what the pool lacks. If SOURCE returned nothing
+    recent, the recency reserve fills short rather than shortening the playlist,
+    and run_triangulate_stage reports the shortfall so it is visible instead of
+    silent.
     """
     top_track_keys = top_track_keys or set()
     budget = run_spec["stretch_budget"]
@@ -244,6 +265,23 @@ def select(
     n_explore = math.ceil(n * config.EXPLORATION_FLOOR)
     explore_pool = [c for c in ranked if is_exploration(c)]
     reserved = explore_pool[:n_explore]
+
+    # Recency floor. Counted after the exploration reserve, and only topped up
+    # by the shortfall — a cold source that happens to supply a 2025 record
+    # satisfies both floors at once and must not be made to pay twice.
+    this_year = int(state.today_stamp()[:4])
+    n_recent = max(
+        0,
+        math.ceil(n * config.MIN_RECENT_SHARE)
+        - sum(1 for c in reserved if is_recent(c, this_year)),
+    )
+    for c in ranked:
+        if n_recent <= 0 or len(reserved) >= n:
+            break
+        if c in reserved or not is_recent(c, this_year):
+            continue
+        reserved.append(c)
+        n_recent -= 1
 
     max_per_source = max(1, math.floor(n * config.MAX_SOURCE_SHARE))
     used: collections.Counter[str] = collections.Counter()
@@ -302,6 +340,11 @@ def run_triangulate_stage(
         )
     run_spec["rating_health"] = rating_health(judged)
     run_spec["corroborated"] = sum(1 for c in judged if len(c.get("sources", [])) > 1)
-    return select(
+    selection = select(
         judged, run_spec, trust_by_source, cold, top_track_keys, incentive_by_source
     )
+    this_year = int(state.today_stamp()[:4])
+    run_spec["recent_target"] = math.ceil(run_spec["length"] * config.MIN_RECENT_SHARE)
+    run_spec["recent_selected"] = sum(1 for c in selection if is_recent(c, this_year))
+    run_spec["recent_available"] = sum(1 for c in judged if is_recent(c, this_year))
+    return selection

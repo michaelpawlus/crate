@@ -177,6 +177,116 @@ def test_exploration_floor_survives_the_cap():
     assert n_cold >= 3  # ceil(15 * 0.20)
 
 
+# --- recency floor ---
+
+def _y(c, year, reissue=None):
+    c["year"] = year
+    if reissue:
+        c["reissue_year"] = reissue
+    return c
+
+
+def _this_year():
+    from crate import state
+    return int(state.today_stamp()[:4])
+
+
+ARCHIVAL = ["Numero Group", "Analog Africa", "Soundway", "Habibi Funk",
+            "Mississippi Records"]
+
+
+def _archival_pool(y, n_recent=5, recent_fit=0.20):
+    """Enough archival sources that MAX_SOURCE_SHARE is satisfiable without any
+    recent track — otherwise the source cap, not the recency floor, is what
+    forces new music in, and the test passes for the wrong reason."""
+    judged = []
+    for name in ARCHIVAL:
+        judged += [_y(_c(f"{name}{i}", str(i), name, fit=0.95), "1972") for i in range(8)]
+    judged += [
+        _y(_c(f"New{i}", str(i), "Bandcamp Daily", fit=recent_fit), str(y))
+        for i in range(n_recent)
+    ]
+    trust = dict.fromkeys(ARCHIVAL, 0.9) | {"Bandcamp Daily": 0.79}
+    return judged, trust
+
+
+def test_recency_floor_reserves_slots_for_music_actually_made_recently():
+    """The observed digs: 2 of 26 tracks recorded this century, against a
+    listener asking for new music. The archival material outscores it, so
+    without a floor the recent picks never survive selection — measured, this
+    pool returns 0 recent without the floor and 3 with it."""
+    y = _this_year()
+    judged, trust = _archival_pool(y)
+    spec = {"stretch_budget": 0.5, "length": 15}
+    out = triangulate.select(judged, spec, trust, set())
+    n_recent = sum(1 for t in out if triangulate.is_recent(t, y))
+    assert len(out) == 15
+    assert n_recent >= 3  # ceil(15 * 0.20)
+
+
+def test_without_the_floor_the_recent_tracks_lose_on_score(monkeypatch):
+    """Pins why the floor has to exist: same pool, floor removed, nothing
+    recent survives. If this ever starts passing on score alone the floor has
+    stopped being load-bearing and should be re-argued, not quietly kept."""
+    y = _this_year()
+    monkeypatch.setattr(config, "MIN_RECENT_SHARE", 0.0)
+    judged, trust = _archival_pool(y)
+    spec = {"stretch_budget": 0.5, "length": 15}
+    out = triangulate.select(judged, spec, trust, set())
+    assert sum(1 for t in out if triangulate.is_recent(t, y)) == 0
+
+
+def test_recency_floor_reads_year_not_reissue_year():
+    """A 1977 record on a 2026 reissue is 1977. Getting this backwards would let
+    a crate of reissues satisfy the floor and report itself as contemporary."""
+    y = _this_year()
+    judged = [
+        _y(_c(f"Old{i}", str(i), "Analog Africa", fit=0.9), "1977", reissue=str(y))
+        for i in range(20)
+    ]
+    spec = {"stretch_budget": 0.5, "length": 15}
+    out = triangulate.select(judged, spec, {"Analog Africa": 0.9}, set())
+    assert len(out) == 15
+    assert sum(1 for t in out if triangulate.is_recent(t, y)) == 0
+
+
+def test_recency_floor_yields_rather_than_shortening_the_playlist():
+    """A floor cannot conjure what SOURCE never returned; the dig still runs."""
+    judged = [_y(_c(f"Old{i}", str(i), "Numero Group", fit=0.9), "1968") for i in range(20)]
+    spec = {"stretch_budget": 0.5, "length": 15}
+    out = triangulate.select(judged, spec, {"Numero Group": 0.98}, set())
+    assert len(out) == 15
+
+
+def test_recency_and_exploration_reserves_do_not_double_charge():
+    """A cold source supplying a recent record satisfies both floors at once;
+    reserving separately would spend six slots to fill two requirements."""
+    y = _this_year()
+    judged = []
+    for name in ARCHIVAL:
+        judged += [_y(_c(f"{name}{i}", str(i), name, fit=0.95), "1972") for i in range(8)]
+    judged += [_y(_c(f"New{i}", str(i), "Cold Source", fit=0.2), str(y)) for i in range(8)]
+    trust = dict.fromkeys(ARCHIVAL, 0.9) | {"Cold Source": 0.5}
+    spec = {"stretch_budget": 0.5, "length": 15}
+    out = triangulate.select(judged, spec, trust, {"Cold Source"})
+
+    cold_and_recent = sum(
+        1 for t in out
+        if triangulate.is_recent(t, y) and t["sources"][0]["source"] == "Cold Source"
+    )
+    assert cold_and_recent >= 3
+    # One set of three answers both floors, so the reserves cost three slots
+    # between them and the archival pool keeps the other twelve.
+    assert sum(1 for t in out if not triangulate.is_recent(t, y)) >= 12
+
+
+def test_recording_year_handles_decades_and_blanks():
+    assert triangulate.recording_year({"year": "1970s"}) == 1970
+    assert triangulate.recording_year({"year": "2026"}) == 2026
+    assert triangulate.recording_year({"year": ""}) is None
+    assert triangulate.recording_year({}) is None
+
+
 # --- source type spread ---
 
 def _registry():

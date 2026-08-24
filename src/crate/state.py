@@ -1,6 +1,7 @@
 """All persistent state lives in human-readable files under ~/.crate.
 The user may edit any of these by hand; manual edits are authoritative."""
 
+import copy
 import json
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -108,7 +109,13 @@ def save_taste(text: str) -> None:
 
 
 def load_signals() -> dict[str, Any]:
-    signals = dict(DEFAULT_SIGNALS)
+    # deepcopy, not dict(): half of DEFAULT_SIGNALS' values are mutable
+    # containers, and a shallow copy hands every caller the *same*
+    # stretch_history list. Appending to it then edits the module default for
+    # the life of the process — which is invisible in the short-lived CLI but
+    # silently carried one test's history into the next, and a test suite that
+    # leaks state is how a dead calibrator goes six weeks without being caught.
+    signals = copy.deepcopy(DEFAULT_SIGNALS)
     signals.update(_read_json(config.signals_path(), {}))
     return signals
 
